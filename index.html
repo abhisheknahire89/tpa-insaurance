@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insurance Pre-Auth Module</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.1?plugins=typography"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'opd-primary': '#3B6FE0',
+            'opd-primary-dark': '#2A55B5',
+            'opd-accent': '#E8524A',
+            'opd-success': '#22C55E',
+            'opd-bg': '#F5F7FA',
+            'opd-surface': '#FFFFFF',
+            'opd-text-primary': '#1A1D23',
+            'opd-text-secondary': '#6B7280',
+            'opd-text-muted': '#9CA3AF',
+            'opd-border': '#E5E7EB',
+            'opd-input-bg': '#F9FAFB',
+            'veda-purple': '#7C5CFC',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          boxShadow: {
+            'card': '0 2px 12px rgba(0,0,0,0.06)',
+            'float': '0 8px 30px rgba(0,0,0,0.12)',
+          },
+          keyframes: {
+            fadeInUp: {
+              '0%': { opacity: '0', transform: 'translateY(10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            },
+            waveform: {
+              '0%, 100%': { height: '20%' },
+              '50%': { height: '100%' },
+            }
+          },
+          animation: {
+            fadeInUp: 'fadeInUp 0.4s ease-out forwards',
+            waveform: 'waveform 1s ease-in-out infinite',
+          }
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Professional Clinical Print Engine */
+    @media print {
+      body {
+        background: white !important;
+        color: black !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        visibility: hidden !important;
+      }
+
+      * {
+        overflow: visible !important;
+      }
+
+      /* Use .no-print to hide UI elements during export */
+      .no-print {
+        display: none !important;
+        visibility: hidden !important;
+      }
+
+      /* Show only the printable document */
+      .printable-area {
+        display: block !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        visibility: visible !important;
+        z-index: 99999 !important;
+      }
+
+      .printable-area,
+      .printable-area * {
+        visibility: visible !important;
+        color: black !important;
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+      }
+
+      @page {
+        size: A4;
+        margin: 10mm;
+      }
+    }
+
+    .printable-area {
+      display: none;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #444;
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.19.0"
+  }
+}
+</script>
+</head>
+
+<body class="bg-opd-bg text-opd-text-primary antialiased font-sans">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
