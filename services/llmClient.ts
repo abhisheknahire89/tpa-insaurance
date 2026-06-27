@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const OLLAMA_URL = 'http://localhost:11434/api/generate';
+const OLLAMA_URL = 'http://localhost:11434/v1/chat/completions';
 
 export interface LlmReasoningOutput {
   challengesConsidered: string[];
@@ -20,18 +20,18 @@ export async function queryMedGemma(prompt: string, systemInstruction?: string):
     try {
       const response = await axios.post(OLLAMA_URL, {
         model: 'medgemma',
-        prompt: prompt,
-        system: systemInstruction,
-        stream: false,
-        options: {
-          temperature: 0.1,
-        }
+        messages: [
+          ...(systemInstruction ? [{ role: 'system', content: systemInstruction }] : []),
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        stream: false
       }, {
         timeout: 15000 // 15 seconds timeout
       });
 
-      if (response.data && typeof response.data.response === 'string') {
-        return response.data.response.trim();
+      if (response.data?.choices?.[0]?.message?.content) {
+        return response.data.choices[0].message.content.trim();
       }
       throw new Error('Malformed response structure from local LLM');
     } catch (error: any) {

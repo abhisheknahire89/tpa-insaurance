@@ -437,6 +437,7 @@ export interface PreAuthRecord {
         irdaiText?: string;
         jsonData?: string;
     };
+    tpaEvidenceReview?: any;
     tpaResponse?: {
         respondedAt: string;
         status: 'approved' | 'denied' | 'query' | 'partial_approved';

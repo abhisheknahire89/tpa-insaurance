@@ -3,6 +3,8 @@ import { PreAuthRecord } from '../PreAuthWizard/types';
 import { savePreAuth } from '../../services/storageService';
 import { StatusBadge } from '../PreAuthDashboard/StatusBadge';
 import { formatDateTime, formatCurrency } from '../../utils/formatters';
+import { logFeedbackEvent } from '../../utils/feedbackLogger';
+
 
 interface StatusTrackerProps {
     record: PreAuthRecord;
@@ -21,6 +23,22 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ record, onClose, o
         setSaving(true);
         const updatedStatus = tpaStatus === 'approved' || tpaStatus === 'partial_approved' ? 'approved' :
             tpaStatus === 'denied' ? 'denied' : 'query_raised';
+
+        // Audit Feedback Loop: capture real-world outcomes for cases flagged insufficient by NEXUS
+        if (record.tpaEvidenceReview?.status === 'insufficient') {
+            if (tpaStatus === 'query') {
+                logFeedbackEvent(record.id, 'queried_insufficient', {
+                    queryDetails,
+                    diagnosis: record.clinical?.diagnoses?.[record.clinical.selectedDiagnosisIndex ?? 0]?.diagnosis
+                });
+            } else if (tpaStatus === 'approved' || tpaStatus === 'partial_approved') {
+                logFeedbackEvent(record.id, 'approved_insufficient', {
+                    approvedAmount,
+                    diagnosis: record.clinical?.diagnoses?.[record.clinical.selectedDiagnosisIndex ?? 0]?.diagnosis
+                });
+            }
+        }
+
         const updated: PreAuthRecord = {
             ...record,
             status: updatedStatus,
@@ -31,6 +49,7 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ record, onClose, o
         setSaving(false);
         onRecordUpdate(updated);
     };
+
 
     const selectedDx = record.clinical?.diagnoses?.[record.clinical.selectedDiagnosisIndex ?? 0];
 
@@ -164,6 +183,13 @@ pre{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:9.5pt;lin
                     {/* Mark as Submitted */}
                     {(record.status === 'ready_to_submit' || record.status === 'draft') && (
                         <button onClick={async () => {
+                            // Audit Feedback Loop: log if desk officer submits despite review warnings
+                            if (record.tpaEvidenceReview?.status === 'insufficient') {
+                                logFeedbackEvent(record.id, 'submitted_insufficient', {
+                                    diagnosis: record.clinical?.diagnoses?.[record.clinical.selectedDiagnosisIndex ?? 0]?.diagnosis
+                                });
+                            }
+
                             const updated = { ...record, status: 'submitted' as const, updatedAt: new Date().toISOString() };
                             await savePreAuth(updated as PreAuthRecord);
                             onRecordUpdate(updated as PreAuthRecord);
@@ -171,6 +197,7 @@ pre{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:9.5pt;lin
                             📤 Mark as Submitted to TPA
                         </button>
                     )}
+
                 </div>
             </div>
         </div>

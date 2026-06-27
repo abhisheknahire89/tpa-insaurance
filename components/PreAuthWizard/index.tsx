@@ -14,6 +14,8 @@ import { savePreAuth, savePatient, generatePreAuthId, generatePatientId } from '
 import { calculateTotals } from '../../utils/costCalculator';
 import { calculateCost, findConditionByICD } from '../../services/costEstimationService';
 import { todayISO, nowTimeString } from '../../utils/formatters';
+import { reviewEvidence } from '../../engine/evidenceReview';
+
 
 interface PreAuthWizardProps {
     onClose: () => void;
@@ -108,12 +110,19 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
 
     const handleGenerate = async (irdaiText: string) => {
         const finalStatus = (record.uploadedDocuments ?? []).length === 0 ? 'pending_documents' : 'ready_to_submit';
-        await updateRecord({ status: finalStatus, outputs: { irdaiText } });
+        let tpaEvidenceReview = undefined;
+        try {
+            tpaEvidenceReview = await reviewEvidence(record);
+        } catch (err) {
+            console.error("Failed to run TPA audit review on generate:", err);
+        }
+        await updateRecord({ status: finalStatus, outputs: { irdaiText }, tpaEvidenceReview });
         if (record.patient?.patientName) {
             const pat = { id: generatePatientId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...record.patient } as PatientRecord;
             await savePatient(pat);
         }
     };
+
 
     // ── Voice dictation: bulk-fill all sections, auto-calculate costs, jump to step 4 ──
     const handleVoiceComplete = async (data: VoiceExtractedData) => {
