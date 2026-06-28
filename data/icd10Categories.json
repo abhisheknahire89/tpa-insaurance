@@ -8200,6 +8200,266 @@
     {
       "categoryCode": "U85",
       "title": "Resistance to antineoplastic drugs"
+    },
+    {
+      "categoryCode": "A90",
+      "title": "Dengue fever [classical dengue]"
+    },
+    {
+      "categoryCode": "A91",
+      "title": "Dengue hemorrhagic fever"
+    },
+    {
+      "categoryCode": "B10",
+      "title": "Other human herpesviruses"
+    },
+    {
+      "categoryCode": "B59",
+      "title": "Pneumocystosis"
+    },
+    {
+      "categoryCode": "C4A",
+      "title": "Merkel cell carcinoma"
+    },
+    {
+      "categoryCode": "C7A",
+      "title": "Malignant neuroendocrine tumors"
+    },
+    {
+      "categoryCode": "C7B",
+      "title": "Secondary neuroendocrine tumors"
+    },
+    {
+      "categoryCode": "D3A",
+      "title": "Benign neuroendocrine tumors"
+    },
+    {
+      "categoryCode": "D49",
+      "title": "Neoplasms of unspecified behavior"
+    },
+    {
+      "categoryCode": "D78",
+      "title": "Intraoperative and postprocedural complications of the spleen"
+    },
+    {
+      "categoryCode": "E08",
+      "title": "Diabetes mellitus due to underlying condition"
+    },
+    {
+      "categoryCode": "E09",
+      "title": "Drug or chemical induced diabetes mellitus"
+    },
+    {
+      "categoryCode": "E36",
+      "title": "Intraoperative complications of endocrine system"
+    },
+    {
+      "categoryCode": "G65",
+      "title": "Sequelae of inflammatory and toxic polyneuropathies"
+    },
+    {
+      "categoryCode": "G89",
+      "title": "Pain, not elsewhere classified"
+    },
+    {
+      "categoryCode": "I16",
+      "title": "Hypertensive crisis"
+    },
+    {
+      "categoryCode": "I75",
+      "title": "Atheroembolism"
+    },
+    {
+      "categoryCode": "I76",
+      "title": "Septic arterial embolism"
+    },
+    {
+      "categoryCode": "I96",
+      "title": "Gangrene, not elsewhere classified"
+    },
+    {
+      "categoryCode": "K68",
+      "title": "Disorders of retroperitoneum"
+    },
+    {
+      "categoryCode": "K94",
+      "title": "Complications of artificial openings of the digestive system"
+    },
+    {
+      "categoryCode": "K95",
+      "title": "Complications of bariatric procedures"
+    },
+    {
+      "categoryCode": "L49",
+      "title": "Exfoliation due to erythematous conditions according to extent of body surface involved"
+    },
+    {
+      "categoryCode": "L76",
+      "title": "Intraoperative and postprocedural complications of skin and subcutaneous tissue"
+    },
+    {
+      "categoryCode": "M04",
+      "title": "Autoinflammatory syndromes"
+    },
+    {
+      "categoryCode": "M1A",
+      "title": "Chronic gout"
+    },
+    {
+      "categoryCode": "M26",
+      "title": "Dentofacial anomalies [including malocclusion]"
+    },
+    {
+      "categoryCode": "M27",
+      "title": "Other diseases of jaws"
+    },
+    {
+      "categoryCode": "M97",
+      "title": "Periprosthetic fracture around internal prosthetic joint"
+    },
+    {
+      "categoryCode": "N52",
+      "title": "Male erectile dysfunction"
+    },
+    {
+      "categoryCode": "N53",
+      "title": "Other male sexual dysfunction"
+    },
+    {
+      "categoryCode": "N65",
+      "title": "Deformity and disproportion of reconstructed breast"
+    },
+    {
+      "categoryCode": "O09",
+      "title": "Supervision of high risk pregnancy"
+    },
+    {
+      "categoryCode": "O76",
+      "title": "Abnormality in fetal heart rate and rhythm complicating labor and delivery"
+    },
+    {
+      "categoryCode": "O77",
+      "title": "Other fetal stress complicating labor and delivery"
+    },
+    {
+      "categoryCode": "O9A",
+      "title": "Maternal malignant neoplasms, traumatic injuries and abuse classifiable elsewhere but complicating pregnancy, childbirth and the puerperium"
+    },
+    {
+      "categoryCode": "P09",
+      "title": "Abnormal findings on neonatal screening"
+    },
+    {
+      "categoryCode": "P19",
+      "title": "Metabolic acidemia in newborn"
+    },
+    {
+      "categoryCode": "P84",
+      "title": "Other problems with newborn"
+    },
+    {
+      "categoryCode": "R37",
+      "title": "Sexual dysfunction, unspecified"
+    },
+    {
+      "categoryCode": "R88",
+      "title": "Abnormal findings in other body fluids and substances"
+    },
+    {
+      "categoryCode": "R97",
+      "title": "Abnormal tumor markers"
+    },
+    {
+      "categoryCode": "V00",
+      "title": "Pedestrian conveyance accident"
+    },
+    {
+      "categoryCode": "W61",
+      "title": "Contact with birds (domestic) (wild)"
+    },
+    {
+      "categoryCode": "W62",
+      "title": "Contact with nonvenomous amphibians"
+    },
+    {
+      "categoryCode": "Y37",
+      "title": "Military operations"
+    },
+    {
+      "categoryCode": "Y38",
+      "title": "Terrorism"
+    },
+    {
+      "categoryCode": "Y92",
+      "title": "Place of occurrence of the external cause"
+    },
+    {
+      "categoryCode": "Y93",
+      "title": "Activity codes"
+    },
+    {
+      "categoryCode": "Y99",
+      "title": "External cause status"
+    },
+    {
+      "categoryCode": "Z05",
+      "title": "Encounter for observation and evaluation of newborn for suspected diseases and conditions ruled out"
+    },
+    {
+      "categoryCode": "Z14",
+      "title": "Genetic carrier"
+    },
+    {
+      "categoryCode": "Z15",
+      "title": "Genetic susceptibility to disease"
+    },
+    {
+      "categoryCode": "Z16",
+      "title": "Resistance to antimicrobial drugs"
+    },
+    {
+      "categoryCode": "Z17",
+      "title": "Estrogen receptor status"
+    },
+    {
+      "categoryCode": "Z18",
+      "title": "Retained foreign body fragments"
+    },
+    {
+      "categoryCode": "Z19",
+      "title": "Hormone sensitivity malignancy status"
+    },
+    {
+      "categoryCode": "Z3A",
+      "title": "Weeks of gestation"
+    },
+    {
+      "categoryCode": "Z66",
+      "title": "Do not resuscitate"
+    },
+    {
+      "categoryCode": "Z67",
+      "title": "Blood type"
+    },
+    {
+      "categoryCode": "Z68",
+      "title": "Body mass index [BMI]"
+    },
+    {
+      "categoryCode": "Z69",
+      "title": "Encounter for mental health services for victim and perpetrator of abuse"
+    },
+    {
+      "categoryCode": "Z77",
+      "title": "Other contact with and (suspected) exposures hazardous to health"
+    },
+    {
+      "categoryCode": "Z78",
+      "title": "Other specified health status"
+    },
+    {
+      "categoryCode": "Z79",
+      "title": "Long term (current) drug therapy"
     }
   ]
 }
