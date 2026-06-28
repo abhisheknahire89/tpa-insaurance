@@ -12,7 +12,16 @@ export interface LlmReasoningOutput {
   }>;
 }
 
+let mockQueryOverride: ((prompt: string, systemInstruction?: string) => Promise<string>) | null = null;
+
+export function setMockQuery(fn: typeof mockQueryOverride) {
+  mockQueryOverride = fn;
+}
+
 export async function queryMedGemma(prompt: string, systemInstruction?: string): Promise<string> {
+  if (mockQueryOverride) {
+    return mockQueryOverride(prompt, systemInstruction);
+  }
   let attempts = 2;
   let lastError: any = null;
 

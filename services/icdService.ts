@@ -184,15 +184,11 @@ Identify the closest valid WHO ICD-10 code.`;
     const responseText = await queryMedGemma(prompt, systemInstruction);
     
     let cleanText = responseText.trim();
-    if (cleanText.startsWith('```json')) {
-      cleanText = cleanText.substring(7);
-    } else if (cleanText.startsWith('```')) {
-      cleanText = cleanText.substring(3);
+    // Robustly extract the JSON object block matching the first { ... } structure
+    const jsonMatch = cleanText.match(/(\{[\s\S]*?\})/);
+    if (jsonMatch) {
+      cleanText = jsonMatch[1].trim();
     }
-    if (cleanText.endsWith('```')) {
-      cleanText = cleanText.substring(0, cleanText.length - 3);
-    }
-    cleanText = cleanText.trim();
 
     const parsed = JSON.parse(cleanText);
     const proposedCode = parsed.code?.trim().toUpperCase();
