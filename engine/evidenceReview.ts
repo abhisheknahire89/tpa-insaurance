@@ -1,6 +1,8 @@
 import { PreAuthRecord } from '../components/PreAuthWizard/types';
 import { getReasoningFromMedGemma, LlmReasoningOutput } from '../services/llmClient';
 import { checkMandatoryGaps } from '../config/mandatoryItems';
+import { validateCode } from '../services/icdService';
+
 
 export interface EvidenceReviewReport {
   status: 'sufficient' | 'insufficient';
@@ -22,6 +24,58 @@ export interface EvidenceReviewReport {
   reasoningTrace: string[];                 // NEXUS evidence chain, for auditability
   reviewedAt: string;
 }
+
+/**
+ * Validates the provisional diagnosis ICD-10 coding correctness.
+ */
+export const checkDiagnosisCoding = (record: Partial<PreAuthRecord>): string[] => {
+  const gaps: string[] = [];
+  const selectedIndex = record.clinical?.selectedDiagnosisIndex ?? 0;
+  const selectedDx = record.clinical?.diagnoses?.[selectedIndex];
+  
+  if (!selectedDx) {
+    gaps.push('Diagnosis entry is missing.');
+    return gaps;
+  }
+
+  const code = selectedDx.icd10Code;
+  
+  // 1. Check if coded or has a placeholder
+  if (!code || code.trim() === '' || code.toLowerCase().includes('pending')) {
+    gaps.push(`Stated diagnosis "${selectedDx.diagnosis}" is not coded with a valid ICD-10 code.`);
+    return gaps;
+  }
+
+  // 2. Validate against WHO table
+  const isValid = validateCode(code);
+  if (!isValid) {
+    gaps.push(`Stated diagnosis code "${code}" is not a valid WHO ICD-10 code.`);
+  }
+
+  // 3. Category match consistency check
+  const categoryPrefix = code.substring(0, 3).toUpperCase();
+  const narrative = `${record.clinical?.chiefComplaints || ''} ${record.clinical?.historyOfPresentIllness || ''} ${record.clinical?.relevantClinicalFindings || ''}`.toLowerCase();
+  
+  if (categoryPrefix === 'J18') { // Pneumonia
+    if (!narrative.includes('pneumonia') && !narrative.includes('cough') && !narrative.includes('fever') && !narrative.includes('chest') && !narrative.includes('lung')) {
+      gaps.push(`ICD-10 category "J18" (Pneumonia) is inconsistent with documented clinical findings.`);
+    }
+  } else if (categoryPrefix === 'E11') { // Diabetes
+    if (!narrative.includes('diabet') && !narrative.includes('sugar') && !narrative.includes('glucose') && !narrative.includes('dka') && !narrative.includes('hyperglycemia')) {
+      gaps.push(`ICD-10 category "E11" (Diabetes Mellitus) is inconsistent with documented clinical findings.`);
+    }
+  } else if (categoryPrefix === 'I10') { // Hypertension
+    if (!narrative.includes('hypertension') && !narrative.includes('bp') && !narrative.includes('blood pressure') && !narrative.includes('pressure')) {
+      gaps.push(`ICD-10 category "I10" (Hypertension) is inconsistent with documented clinical findings.`);
+    }
+  } else if (categoryPrefix === 'I21') { // MI
+    if (!narrative.includes('myocardial') && !narrative.includes('infarction') && !narrative.includes('mi') && !narrative.includes('heart') && !narrative.includes('chest pain') && !narrative.includes('stemi')) {
+      gaps.push(`ICD-10 category "I21" (Myocardial Infarction) is inconsistent with documented clinical findings.`);
+    }
+  }
+
+  return gaps;
+};
 
 /**
  * Checks if a required finding is present in the case narrative or structured fields.
@@ -304,6 +358,15 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
   for (const gap of mandatoryGaps) {
     trace.push(`[NEXUS TPA Engine] Administrative Gap: "${gap}".`);
   }
+
+  // WHO ICD-10 Coding Compliance checks
+  trace.push('[NEXUS TPA Engine] Running deterministic WHO ICD-10 coding compliance rules.');
+  const codingGaps = checkDiagnosisCoding(record);
+  for (const gap of codingGaps) {
+    mandatoryGaps.push(gap);
+    trace.push(`[NEXUS TPA Engine] Coding Compliance Gap: "${gap}".`);
+  }
+
 
   // 6. Overall Status Determination
   const status = (insufficientEvidence.length > 0 || mandatoryGaps.length > 0) ? 'insufficient' : 'sufficient';

@@ -184,6 +184,12 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
             clinical: {
                 ...record.clinical,
                 ...data.clinical,
+                diagnoses: data.clinical?.diagnoses?.map((dx, idx) => ({
+                    ...dx,
+                    icd10Code: 'Pending ICD-10',
+                    icd10Description: 'Selection required',
+                    isSelected: idx === 0
+                })) || []
             } as Partial<ClinicalDetails>,
             admission: {
                 ...record.admission,
@@ -283,6 +289,8 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
                     {step === 2 && (
                         <ClinicalDetailsStep
                             clinical={record.clinical ?? {}}
+                            caseId={record.id}
+                            doctorName={record.declarations?.doctor?.doctorName || 'Treating Doctor'}
                             onClinicalChange={c => updateRecord({ clinical: c })}
                             onNext={handleNext}
                             onBack={handleBack}

@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { ClinicalDetails, ClinicalDataSource, DiagnosisEntry, WizardVitals } from '../PreAuthWizard/types';
 import { searchICD10 } from '../../config/icd10Database';
+import { ICDPicker } from './ICDPicker';
 
 interface ClinicalDetailsStepProps {
     clinical: Partial<ClinicalDetails>;
+    caseId: string;
+    doctorName?: string;
     onClinicalChange: (c: Partial<ClinicalDetails>) => void;
     onNext: () => void;
     onBack: () => void;
@@ -12,7 +15,7 @@ interface ClinicalDetailsStepProps {
 const DEFAULT_VITALS: WizardVitals = { bp: '', pulse: '', temp: '', spo2: '', rr: '' };
 
 export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
-    clinical, onClinicalChange, onNext, onBack
+    clinical, caseId, doctorName, onClinicalChange, onNext, onBack
 }) => {
     const [dataSource, setDataSource] = useState<ClinicalDataSource | null>(clinical.chiefComplaints ? 'manual_entry' : null);
     const [icdQuery, setIcdQuery] = useState('');
@@ -39,9 +42,9 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
         const existing = c.diagnoses ?? [];
         if (existing.some(d => d.icd10Code === entry.code)) return;
         const newEntry: DiagnosisEntry = {
-            diagnosis: entry.commonName ?? entry.description,
-            icd10Code: entry.code,
-            icd10Description: entry.description,
+            diagnosis: entry.condition_name || (entry.commonName ?? entry.description),
+            icd10Code: 'Pending ICD-10',
+            icd10Description: 'Selection required',
             probability: 0.85,
             reasoning: '',
             isSelected: existing.length === 0,
@@ -70,6 +73,7 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
     const isValid = !!(
         c.chiefComplaints && c.durationOfPresentAilment && c.natureOfIllness &&
         c.diagnoses && c.diagnoses.length > 0 &&
+        c.diagnoses.every(d => d.icd10Code && !d.icd10Code.toLowerCase().includes('pending')) &&
         (c.proposedLineOfTreatment?.medical || c.proposedLineOfTreatment?.surgical ||
             c.proposedLineOfTreatment?.intensiveCare || c.proposedLineOfTreatment?.investigation) &&
         c.reasonForHospitalisation
@@ -215,7 +219,13 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                                 <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${dx.isSelected ? 'bg-blue-500 border-blue-400' : 'border-gray-500'}`} />
                                 <div className="flex-1">
                                     <div className="text-sm font-medium text-white">{dx.diagnosis}</div>
-                                    <div className="text-xs text-gray-400">{dx.icd10Code} — {dx.icd10Description}</div>
+                                    <div className="text-xs text-gray-400">
+                                        {dx.icd10Code.includes('Pending') ? (
+                                            <span className="text-amber-400">⚠️ {dx.icd10Code} — {dx.icd10Description}</span>
+                                        ) : (
+                                            <span>{dx.icd10Code} — {dx.icd10Description}</span>
+                                        )}
+                                    </div>
                                 </div>
                                 {dx.isSelected && <span className="text-xs text-blue-400 font-semibold">Primary</span>}
                                 <button onClick={e => { e.stopPropagation(); removeDx(i); }} className="text-gray-600 hover:text-red-400 text-xs p-1">✕</button>
@@ -224,6 +234,41 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                     </div>
                 )}
                 {(c.diagnoses ?? []).length === 0 && <p className="text-gray-500 text-xs text-center py-4">Search and add the primary diagnosis above *</p>}
+
+                {/* Render ICD Picker for the selected (primary) diagnosis */}
+                {c.diagnoses && c.diagnoses.length > 0 && (() => {
+                    const primaryIdx = c.selectedDiagnosisIndex ?? 0;
+                    const primaryDx = c.diagnoses[primaryIdx];
+                    if (!primaryDx) return null;
+                    return (
+                        <div className="mt-2">
+                            <ICDPicker
+                                caseId={caseId}
+                                diagnosisText={primaryDx.diagnosis}
+                                clinicalContext={c.chiefComplaints || ''}
+                                initialCode={primaryDx.icd10Code && !primaryDx.icd10Code.toLowerCase().includes('pending') ? primaryDx.icd10Code : ''}
+                                initialDescription={primaryDx.icd10Description && !primaryDx.icd10Description.toLowerCase().includes('pending') ? primaryDx.icd10Description : ''}
+                                initialMatchMethod={primaryDx.icd10MatchMethod}
+                                doctorName={doctorName}
+                                onConfirm={(code, description, matchMethod) => {
+                                    const updated = (c.diagnoses ?? []).map((dx, idx) => {
+                                        if (idx === primaryIdx) {
+                                            return {
+                                                ...dx,
+                                                icd10Code: code,
+                                                icd10Description: description,
+                                                icd10MatchMethod: matchMethod
+                                            };
+                                        }
+                                        return dx;
+                                    });
+                                    update({ diagnoses: updated });
+                                }}
+                            />
+                        </div>
+                    );
+                })()}
+
             </div>
 
             {/* Treatment Plan */}
@@ -305,7 +350,7 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                     Continue to Admission & Cost →
                 </button>
             </div>
-            {!isValid && <p className="text-xs text-amber-400 text-center">Add diagnosis, treatment line, and OPD justification to continue</p>}
+            {!isValid && <p className="text-xs text-amber-400 text-center">Add diagnosis (with confirmed ICD-10 code), treatment line, and OPD justification to continue</p>}
         </div>
     );
 };

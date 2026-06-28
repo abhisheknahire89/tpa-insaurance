@@ -6,6 +6,10 @@ export function logFeedbackEvent(caseId: string, eventType: 'submitted_insuffici
   const logPrefix = `[NEXUS FEEDBACK LOOP]`;
   console.log(`${logPrefix} Case ID: ${caseId} | Event: ${eventType}`, details || '');
 
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
   try {
     const logs = JSON.parse(localStorage.getItem('nexus_feedback_logs') || '[]');
     logs.push({

@@ -402,6 +402,112 @@ async function runTests() {
 
   console.log('✅ Test 5 Passed: Graceful degradation correctly processed local LLM failure.');
 
+  // =========================================================================
+  // TEST case 6: ICD-10 Search & Synonym Matches
+  // =========================================================================
+  console.log('\nRunning Test 6: ICD-10 Search & Synonym Matches...');
+  const { lookupICD, validateCode } = await import('../services/icdService');
+
+  // Test synonym lookups
+  const miLookup = lookupICD('MI');
+  assert(miLookup.length > 0 && miLookup[0].code === 'I21.9' && miLookup[0].matchMethod === 'synonym', 'MI should resolve to I21.9 via synonym');
+
+  const sugarLookup = lookupICD('sugar');
+  assert(sugarLookup.length > 0 && sugarLookup[0].code === 'E11.9' && sugarLookup[0].matchMethod === 'synonym', 'sugar should resolve to E11.9 via synonym');
+
+  const highBpLookup = lookupICD('high BP');
+  assert(highBpLookup.length > 0 && highBpLookup[0].code === 'I10' && highBpLookup[0].matchMethod === 'synonym', 'high BP should resolve to I10 via synonym');
+
+  // Test contains lookup
+  const pneumoniaLookup = lookupICD('pneumonia');
+  assert(pneumoniaLookup.length > 0 && pneumoniaLookup.some(c => c.code.startsWith('J18')), 'pneumonia should return J18 codes');
+
+  // Test validation
+  assert(validateCode('J18.9') === true, 'J18.9 should be valid');
+  assert(validateCode('E11.9') === true, 'E11.9 should be valid');
+  assert(validateCode('I10') === true, 'I10 should be valid');
+  assert(validateCode('NONSENSE') === false, 'NONSENSE code should be invalid');
+
+  console.log('✅ Test 6 Passed: ICD-10 lookup & synonyms resolve correctly.');
+
+  // =========================================================================
+  // TEST case 7: ICD-10 Coding compliance validation in reviewEvidence
+  // =========================================================================
+  console.log('\nRunning Test 7: ICD-10 Coding Compliance Validation...');
+  mockLlmResponse({
+    challengesConsidered: [],
+    anchors: [],
+    discriminators: []
+  });
+
+  // 7a. Missing coding
+  const missingCodingRecord: Partial<PreAuthRecord> = {
+    ...sufficientRecord,
+    clinical: {
+      ...sufficientRecord.clinical,
+      diagnoses: [
+        {
+          diagnosis: 'Pneumonia',
+          icd10Code: 'Pending ICD-10',
+          icd10Description: 'Selection required',
+          probability: 0.9,
+          reasoning: '',
+          isSelected: true
+        }
+      ]
+    }
+  };
+  const codingReport1 = await reviewEvidence(missingCodingRecord);
+  assert(codingReport1.status === 'insufficient', 'Missing coding should flag insufficient');
+  assert(codingReport1.mandatoryGaps.some(g => g.includes('not coded')), 'Should flag not coded gap');
+
+  // 7b. Invalid coding
+  const invalidCodingRecord: Partial<PreAuthRecord> = {
+    ...sufficientRecord,
+    clinical: {
+      ...sufficientRecord.clinical,
+      diagnoses: [
+        {
+          diagnosis: 'Pneumonia',
+          icd10Code: 'INVALID-CODE',
+          icd10Description: 'Bad description',
+          probability: 0.9,
+          reasoning: '',
+          isSelected: true
+        }
+      ]
+    }
+  };
+  const codingReport2 = await reviewEvidence(invalidCodingRecord);
+  assert(codingReport2.status === 'insufficient', 'Invalid coding should flag insufficient');
+  assert(codingReport2.mandatoryGaps.some(g => g.includes('not a valid WHO')), 'Should flag invalid WHO code gap');
+
+  // 7c. Inconsistent category coding (J18 with no respiratory findings)
+  const inconsistentCodingRecord: Partial<PreAuthRecord> = {
+    ...sufficientRecord,
+    clinical: {
+      ...sufficientRecord.clinical,
+      chiefComplaints: 'Leg fracture after self fall',
+      historyOfPresentIllness: 'Patient fell off motorcycle yesterday',
+      relevantClinicalFindings: 'Pain and swelling in right tibia',
+      diagnoses: [
+        {
+          diagnosis: 'Pneumonia',
+          icd10Code: 'J18.9',
+          icd10Description: 'Pneumonia, unspecified organism',
+          probability: 0.9,
+          reasoning: '',
+          isSelected: true
+        }
+      ]
+    }
+  };
+  const codingReport3 = await reviewEvidence(inconsistentCodingRecord);
+  assert(codingReport3.status === 'insufficient', 'Inconsistent coding should flag insufficient');
+  assert(codingReport3.mandatoryGaps.some(g => g.includes('category "J18" (Pneumonia) is inconsistent')), 'Should flag inconsistency gap');
+
+  console.log('✅ Test 7 Passed: Coding compliance (missing/invalid/mismatch) correctly verified.');
+
   console.log('\n🎉 ALL TESTS PASSED SUCCESSFULLY! 🎉');
   
   // Reset getReasoning to original

@@ -194,6 +194,7 @@ export interface DiagnosisEntry {
     diagnosis: string;
     icd10Code: string;
     icd10Description: string;
+    icd10MatchMethod?: string;
     probability: number;
     reasoning: string;
     isSelected: boolean;
