@@ -10,91 +10,88 @@ export interface DemoFallbackReasoning {
 
 export const DEMO_FALLBACKS: Record<string, DemoFallbackReasoning> = {
   diabetes: {
-    "challengesConsidered": [
+    challengesConsidered: [
       "could this be managed as OPD?",
       "could this be a pre-existing condition?",
-      "is the stated diagnosis actually supported by the documented findings?"
+      "is the stated diagnosis supported by documented findings?"
     ],
-    "anchors": [
-      "HbA1c level",
-      "Urinalysis for glucose and ketones",
-      "ECG",
-      "Blood pressure monitoring",
-      "Patient's history of diabetes management (if any)"
+    anchors: [
+      "Random or fasting blood glucose values (with dates)",
+      "HbA1c result to establish glycaemic control level",
+      "Documented symptom severity (e.g., dehydration, vomiting, altered sensorium, ketonuria)",
+      "Exact onset and duration of the current acute episode",
+      "Past prescription / treatment records for diabetes"
     ],
-    "discriminators": [
+    discriminators: [
       {
-        "challenge": "could this be managed as OPD?",
-        "evidence": "HbA1c level > 9% or blood glucose consistently above 300 mg/dL despite oral medications, presence of significant symptoms like dehydration, altered mental status, or severe complications (e.g., diabetic ketoacidosis).",
-        "reason": "If the patient's HbA1c is below 9%, and their blood sugar levels are controlled with oral medications without significant symptoms or complications, outpatient management may be appropriate."
+        challenge: "could this be managed as OPD?",
+        evidence: "Vitals instability, documented inability to maintain oral hydration, or blood glucose persistently above 300 mg/dL despite outpatient-equivalent oral medication",
+        reason: "A reviewer would query why inpatient admission is needed rather than an outpatient glucose adjustment visit — documented severity markers establish this justification."
       },
       {
-        "challenge": "could this be a pre-existing condition?",
-        "evidence": "Patient has a documented history of diabetes mellitus (HbA1c > 6.5% or diagnosis by a physician), and the current hyperglycemia is likely related to poor glycemic control, medication non-adherence, or an acute exacerbation of existing diabetes.",
-        "reason": "If the patient has a known history of diabetes with documented HbA1c levels above the diagnostic threshold, and their current presentation is consistent with poorly controlled diabetes, it's more likely a pre-existing condition. If there's no prior diagnosis or evidence of diabetes management, it may be a new onset."
+        challenge: "could this be a pre-existing condition?",
+        evidence: "Clinical notes or prescriptions showing when diabetes was first diagnosed and what treatment has been ongoing",
+        reason: "Without a documented disease timeline, a reviewer would likely query whether this is a known pre-existing condition subject to a policy waiting period."
       },
       {
-        "challenge": "is the stated diagnosis actually supported by the documented findings?",
-        "evidence": "Blood glucose levels (fasting and postprandial), HbA1c level, urinalysis for glucose and ketones, ECG, blood pressure monitoring. Patient's history of diabetes management.",
-        "reason": "The diagnosis should be based on established criteria for diabetes mellitus (e.g., fasting plasma glucose ≥ 126 mg/dL, HbA1c ≥ 6.5%, or both). The presence of hyperglycemia and symptoms like polyuria and polydipsia support the diagnosis. A urinalysis for ketones is important to rule out diabetic ketoacidosis."
+        challenge: "is the stated diagnosis supported by documented findings?",
+        evidence: "Objective lab report with blood glucose or HbA1c confirming hyperglycaemia meeting diagnostic thresholds",
+        reason: "The diagnosis of Type 2 Diabetes Mellitus with hyperglycaemia requires documented laboratory values — narrative description alone is insufficient for a TPA reviewer."
       }
     ]
   },
   pneumonia: {
-    "challengesConsidered": [
+    challengesConsidered: [
       "could this be managed as OPD?",
       "could this be a pre-existing condition?",
-      "is the stated diagnosis actually supported by the documented findings?"
+      "is the stated diagnosis supported by documented findings?"
     ],
-    "anchors": [
-      "chest X-ray with infiltrate",
-      "blood cultures (if indicated)"
+    anchors: [
+      "Chest X-ray report confirming infiltrate or consolidation",
+      "Documented SpO2 saturation reading on admission",
+      "Elevated WBC count or CRP / inflammatory marker result",
+      "Temperature recording demonstrating fever on admission"
     ],
-    "discriminators": [
+    discriminators: [
       {
-        "challenge": "could this be managed as OPD?",
-        "evidence": "chest X-ray showing focal consolidation, vital signs stable and improving, no significant comorbidities.",
-        "reason": "If the chest X-ray shows a localized infiltrate with improvement in symptoms and vital signs, outpatient management is appropriate. The patient's history should indicate that this is not a new or worsening condition."
+        challenge: "could this be managed as OPD?",
+        evidence: "SpO2 below 94% on room air, or documented respiratory distress / tachypnoea requiring oxygen therapy",
+        reason: "A reviewer would query inpatient necessity unless documented hypoxia or respiratory instability justifies continuous monitoring and oxygen — PSI/CURB-65 severity criteria support this."
       },
       {
-        "challenge": "could this be a pre-existing condition?",
-        "evidence": "patient has a documented history of pneumonia from at least 3 months ago.",
-        "reason": "If the patient has a known history of community acquired pneumonia, it is unlikely to be a new or acute infection. The patient's medical record should include documentation of prior episodes of pneumonia."
+        challenge: "could this be a pre-existing condition?",
+        evidence: "Documented acute onset with symptom duration of less than 7–10 days, with no prior chest hospitalisation record",
+        reason: "A reviewer would query whether this represents a chronic or recurrent respiratory condition rather than an acute community-acquired infection."
       },
       {
-        "challenge": "is the stated diagnosis actually supported by the documented findings?",
-        "evidence": "chest X-ray showing infiltrate consistent with pneumonia, elevated white blood cell count, and clinical symptoms (cough, fever) are present.",
-        "reason": "The chest X-ray should demonstrate evidence of consolidation or infiltrates. The patient's vital signs and clinical presentation should be consistent with pneumonia."
+        challenge: "is the stated diagnosis supported by documented findings?",
+        evidence: "Chest X-ray or CT chest report confirming radiological infiltrates consistent with pneumonia",
+        reason: "Pneumonia diagnosis requires radiological confirmation; a clinical presentation alone without imaging is routinely queried by reviewers."
       }
     ]
   },
   appendicitis: {
-    "challengesConsidered": [
+    challengesConsidered: [
       "could this be managed as OPD?",
       "could this be a pre-existing condition?",
-      "is the stated diagnosis actually supported by the documented findings?"
+      "is the stated diagnosis supported by documented findings?"
     ],
-    "anchors": [
-      "appendiceal diameter > 6mm",
-      "presence of periappendiceal inflammation on imaging (CT or MRI)",
-      "clinical symptoms consistent with appendicitis (RLQ pain, fever, elevated WBC count)"
+    anchors: [
+      "USG abdomen or CT abdomen report confirming non-compressible appendix (diameter > 6 mm)",
+      "Elevated WBC count on admission",
+      "Documented fever and RLQ tenderness on examination",
+      "Surgeon's note documenting indication for appendicectomy"
     ],
-    "discriminators": [
+    // Intentionally near-empty: a well-documented acute appendicitis note satisfies nearly all
+    // reviewer challenges. This models the Metacognitive Loop self-check — if the note already
+    // answers the challenge, do NOT raise the query (sufficient case behaviour).
+    discriminators: [
       {
-        "challenge": "could this be managed as OPD?",
-        "evidence": "appendiceal diameter < 6mm on imaging",
-        "reason": "If the appendix is small (less than 6 mm), it may be amenable to outpatient management with close follow-up. This requires a CT or MRI scan showing an appendiceal diameter less than 6mm."
-      },
-      {
-        "challenge": "could this be a pre-existing condition?",
-        "evidence": "history of prior appendectomy, documented history of chronic RLQ pain",
-        "reason": "A previous appendectomy or chronic RLQ pain could suggest that the current symptoms are related to a healed appendix or another underlying issue. This requires a detailed patient history including any prior surgical interventions and/or medical conditions."
-      },
-      {
-        "challenge": "is the stated diagnosis actually supported by the documented findings?",
-        "evidence": "CT scan showing appendiceal diameter > 6mm, presence of periappendiceal inflammation on imaging (CT or MRI), clinical symptoms consistent with appendicitis (RLQ pain, fever, elevated WBC count)",
-        "reason": "The diagnosis of acute appendicitis is supported by the combination of a non-compressible appendix greater than 6mm in diameter and evidence of periappendiceal inflammation. The patient's symptoms also align with this diagnosis."
+        challenge: "is the stated diagnosis supported by documented findings?",
+        evidence: "Imaging report (USG/CT) confirming acute appendicitis with periappendiceal inflammation or fluid",
+        reason: "Radiological or sonographic confirmation is the standard anchor for acute appendicitis — if already documented in the note, this challenge is resolved."
       }
     ]
   }
 };
+
