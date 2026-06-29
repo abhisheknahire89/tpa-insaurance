@@ -106,6 +106,46 @@
       display: none;
     }
 
+    /* ── Design System Utilities ─────────────────────────────────── */
+
+    /* Consistent section heading style (lighter than step title) */
+    .section-label {
+      font-size: 0.6875rem;   /* 11px */
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgb(156 163 175); /* gray-400 */
+    }
+
+    /* Inline badge that flags AI-suggested content */
+    .ai-suggestion-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.65rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: rgb(96 165 250);  /* blue-400 */
+      background: rgba(59 130 246 / 0.10);
+      border: 1px solid rgba(59 130 246 / 0.22);
+      border-radius: 9999px;
+      padding: 1px 7px;
+    }
+
+    /* Pulsing loading indicator dots */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 0.2; transform: scale(0.85); }
+      50%       { opacity: 1;   transform: scale(1); }
+    }
+    .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+    .pulse-dot:nth-child(2) { animation-delay: 0.2s; }
+    .pulse-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    /* Inline SVG spinner (no emoji) */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin-svg { animation: spin 0.8s linear infinite; }
+
+    /* ── Scrollbar ─────────────────────────────────────────────────── */
     .custom-scrollbar::-webkit-scrollbar {
       width: 6px;
     }
@@ -115,12 +155,12 @@
     }
 
     .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #333;
+      background: #3a3a3a;
       border-radius: 10px;
     }
 
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: #444;
+      background: #505050;
     }
   </style>
   <script type="importmap">

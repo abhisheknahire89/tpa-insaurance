@@ -19,7 +19,9 @@ export interface EvidenceReviewReport {
     reason: string;
     relatedChallenge: string;
     severity: 'low' | 'medium' | 'high';
+    source: 'rule' | 'suggestion';          // rule-based vs model observation
   }>;
+  policyChecks: string[];                   // prompts for policy checks (not verifiable from clinical note)
   mandatoryGaps: string[];                  // from the deterministic layer
   reasoningTrace: string[];                 // NEXUS evidence chain, for auditability
   reviewedAt: string;
@@ -262,6 +264,7 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
   const selectedIndex = record.clinical?.selectedDiagnosisIndex ?? 0;
   const selectedDx = record.clinical?.diagnoses?.[selectedIndex];
   const diagnosis = selectedDx?.diagnosis || 'Unspecified Condition';
+  const provisionalCode = selectedDx?.icd10Code || '';
   
   // 2. Admission Decision
   const admissionType = record.admission?.admissionType || 'Planned';
@@ -309,7 +312,8 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
         query,
         reason: `Required diagnostic anchor "${anchor}" is not documented in the clinical narrative.`,
         relatedChallenge: 'is the stated diagnosis actually supported by the documented findings?',
-        severity: 'medium'
+        severity: 'medium',
+        source: 'suggestion'
       });
     }
   }
@@ -347,10 +351,154 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
         query,
         reason: disc.reason,
         relatedChallenge: disc.challenge,
-        severity
+        severity,
+        source: 'suggestion'
       });
     }
   }
+
+  // ─── Deterministic Clinical Rules (Problem 2) ───────────────────
+  const isChronicDx = (dx: string, code: string): boolean => {
+    const d = `${dx} ${code}`.toLowerCase();
+    return d.includes('osteoarthritis') || d.includes('diabetes') || d.includes('hypertension') ||
+           d.includes('cardiac') || d.includes('renal') || d.includes('copd') || d.includes('asthma') ||
+           d.includes('heart') || d.includes('stroke') || d.includes('thyroid') || d.includes('arthr') ||
+           d.includes('chronic') || d.includes('replacement') || d.includes('joint') ||
+           d.includes('m17') || d.includes('e11') || d.includes('i10');
+  };
+
+  const pmh = record.admission?.pastMedicalHistory;
+  const hasComorbidities = pmh ? (
+    pmh.diabetes?.present ||
+    pmh.hypertension?.present ||
+    pmh.heartDisease?.present ||
+    pmh.kidney?.present ||
+    pmh.liver?.present
+  ) : false;
+
+  // 1. BLANK DURATION
+  const duration = record.clinical?.durationOfPresentAilment;
+  const isDurationEmpty = !duration || duration.trim() === '' || 
+      /^(n\/a|na|none|nil|pending|selection required)$/i.test(duration.trim());
+  if ((isChronicDx(diagnosis, provisionalCode) || hasComorbidities) && isDurationEmpty) {
+    anticipatedQueries.push({
+      query: "Provide clinical records or doctor notes detailing the exact duration and onset of the chronic condition and/or comorbidities.",
+      reason: "Disease duration not documented — TPA will query to establish pre-existing status.",
+      relatedChallenge: "could this be a pre-existing condition?",
+      severity: 'high',
+      source: 'rule'
+    });
+  }
+
+  // 2. CONSERVATIVE-MANAGEMENT (medical necessity)
+  const isElectiveSurgical = (dx: string, code: string): boolean => {
+    const text = `${dx} ${code}`.toLowerCase();
+    return text.includes('replacement') || text.includes('tkr') || text.includes('thr') || 
+           text.includes('osteoarthritis') || text.includes('spine') || text.includes('laminectomy') || 
+           text.includes('discectomy') || text.includes('joint');
+  };
+  const narrativeText = `${record.clinical?.treatmentTakenSoFar || ''} ${record.clinical?.relevantClinicalFindings || ''} ${record.clinical?.additionalClinicalNotes || ''} ${record.clinical?.chiefComplaints || ''}`.toLowerCase();
+  const mentionsConservative = narrativeText.includes('conservative') || narrativeText.includes('physio') || 
+    narrativeText.includes('medication') || narrativeText.includes('analgesic') || narrativeText.includes('nsaid') || 
+    narrativeText.includes('injection') || narrativeText.includes('steroid') || narrativeText.includes('tablet');
+  const lotSurgical = record.clinical?.proposedLineOfTreatment?.surgical || false;
+  if (isElectiveSurgical(diagnosis, provisionalCode) && lotSurgical && !mentionsConservative) {
+    anticipatedQueries.push({
+      query: "Provide documented history of prior non-surgical conservative treatments (medications, physiotherapy, joint injections) attempted before proposing surgery.",
+      reason: "No conservative-management history — TPA will query medical necessity / why surgery now.",
+      relatedChallenge: "could this be managed as OPD?",
+      severity: 'high',
+      source: 'rule'
+    });
+  }
+
+  // 3. BILATERAL / SAME-SITTING
+  const isBilateralText = `${diagnosis} ${record.clinical?.chiefComplaints || ''} ${record.clinical?.historyOfPresentIllness || ''}`.toLowerCase();
+  const isBilateral = isBilateralText.includes('bilateral') || isBilateralText.includes('both knees') || isBilateralText.includes('both hips') || isBilateralText.includes('simultaneous');
+  if (isBilateral) {
+    anticipatedQueries.push({
+      query: "Provide specific clinical justification for performing bilateral/simultaneous procedures in a single sitting versus a staged clinical approach.",
+      reason: "Bilateral/simultaneous procedure — provide clinical justification (vs staged); insurers commonly query this.",
+      relatedChallenge: "is the stated diagnosis actually supported by the documented findings?",
+      severity: 'medium',
+      source: 'rule'
+    });
+  }
+
+  // 4. COST IMPLAUSIBILITY
+  const isSurgicalLOT = record.clinical?.proposedLineOfTreatment?.surgical || false;
+  const isReplacement = isElectiveSurgical(diagnosis, provisionalCode);
+  const surgeonOTZero = (record.costEstimate?.surgeonFee ?? 0) === 0 || (record.costEstimate?.otCharges ?? 0) === 0;
+  const implantsZero = isReplacement && (record.costEstimate?.totalImplantsCost ?? 0) === 0;
+  if (isSurgicalLOT && (surgeonOTZero || implantsZero)) {
+    anticipatedQueries.push({
+      query: "Provide a complete itemized surgical cost estimate. Stating ₹0 for Surgeon Fees, OT Charges, or Implants is clinically inconsistent with a proposed surgical procedure.",
+      reason: "Cost breakdown implausible for a surgical procedure — implant/surgeon/OT cost missing.",
+      relatedChallenge: "is the stated diagnosis actually supported by the documented findings?",
+      severity: 'high',
+      source: 'rule'
+    });
+  }
+
+  // 5. PED-PRONE COMORBIDITY
+  if (pmh) {
+    if (pmh.diabetes?.present) {
+      const mentionsDiabetes = `${record.clinical?.treatmentTakenSoFar || ''} ${record.clinical?.historyOfPresentIllness || ''} ${record.clinical?.relevantClinicalFindings || ''}`.toLowerCase().match(/(diabet|sugar|glucose|metformin|insulin|glim|dpp|sglt)/i);
+      if (!mentionsDiabetes) {
+        anticipatedQueries.push({
+          query: "Provide historical clinical records, exact duration, and past treatment documentation/prescriptions for declared Diabetes comorbidity.",
+          reason: "Diabetes/hypertension/cardiac/renal present with no past-treatment history/records — TPA will query to establish PED status.",
+          relatedChallenge: "could this be a pre-existing condition?",
+          severity: 'high',
+          source: 'rule'
+        });
+      }
+    }
+    if (pmh.hypertension?.present) {
+      const mentionsHypertension = `${record.clinical?.treatmentTakenSoFar || ''} ${record.clinical?.historyOfPresentIllness || ''} ${record.clinical?.relevantClinicalFindings || ''}`.toLowerCase().match(/(hypertens|bp|blood pressure|amlodipine|telmisartan|losartan|metoprolol)/i);
+      if (!mentionsHypertension) {
+        anticipatedQueries.push({
+          query: "Provide historical clinical records, exact duration, and past treatment documentation/prescriptions for declared Hypertension comorbidity.",
+          reason: "Diabetes/hypertension/cardiac/renal present with no past-treatment history/records — TPA will query to establish PED status.",
+          relatedChallenge: "could this be a pre-existing condition?",
+          severity: 'high',
+          source: 'rule'
+        });
+      }
+    }
+    if (pmh.heartDisease?.present) {
+      const mentionsHeart = `${record.clinical?.treatmentTakenSoFar || ''} ${record.clinical?.historyOfPresentIllness || ''} ${record.clinical?.relevantClinicalFindings || ''}`.toLowerCase().match(/(heart|cardiac|coronary|cad|stent|bypass|angio|aspirin|clopidogrel|atorvastatin)/i);
+      if (!mentionsHeart) {
+        anticipatedQueries.push({
+          query: "Provide historical clinical records, exact duration, and past treatment documentation/prescriptions for declared Cardiac comorbidity.",
+          reason: "Diabetes/hypertension/cardiac/renal present with no past-treatment history/records — TPA will query to establish PED status.",
+          relatedChallenge: "could this be a pre-existing condition?",
+          severity: 'high',
+          source: 'rule'
+        });
+      }
+    }
+    if (pmh.kidney?.present) {
+      const mentionsKidney = `${record.clinical?.treatmentTakenSoFar || ''} ${record.clinical?.historyOfPresentIllness || ''} ${record.clinical?.relevantClinicalFindings || ''}`.toLowerCase().match(/(kidney|renal|nephro|ckd|creatinine|dialysis)/i);
+      if (!mentionsKidney) {
+        anticipatedQueries.push({
+          query: "Provide historical clinical records, exact duration, and past treatment documentation/prescriptions for declared Renal comorbidity.",
+          reason: "Diabetes/hypertension/cardiac/renal present with no past-treatment history/records — TPA will query to establish PED status.",
+          relatedChallenge: "could this be a pre-existing condition?",
+          severity: 'high',
+          source: 'rule'
+        });
+      }
+    }
+  }
+
+  // 6. Policy Checks Needed
+  const policyChecks: string[] = [
+    "Verify pre-existing disease waiting period eligibility under the policy terms.",
+    "Verify room-rent category cap / eligibility limits against actual room selection.",
+    "Verify non-disclosure status of comorbidity history with policy proposal form.",
+    "Verify sum-insured balance sufficiency to cover the estimated pre-auth cost."
+  ];
 
   // 5. Deterministic Admin/Legal Layer (config/mandatoryItems.ts)
   trace.push('[NEXUS TPA Engine] Running deterministic rules for administrative compliance.');
@@ -367,9 +515,9 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
     trace.push(`[NEXUS TPA Engine] Coding Compliance Gap: "${gap}".`);
   }
 
-
   // 6. Overall Status Determination
-  const status = (insufficientEvidence.length > 0 || mandatoryGaps.length > 0) ? 'insufficient' : 'sufficient';
+  const hasInsufficientClinicalGaps = anticipatedQueries.some(q => q.source === 'rule');
+  const status = (insufficientEvidence.length > 0 || mandatoryGaps.length > 0 || hasInsufficientClinicalGaps) ? 'insufficient' : 'sufficient';
   trace.push(`[NEXUS TPA Engine] Sufficiency Audit Complete. Status: "${status.toUpperCase()}".`);
 
   return {
@@ -378,6 +526,7 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
     requiredEvidence,
     insufficientEvidence,
     anticipatedQueries,
+    policyChecks,
     mandatoryGaps,
     reasoningTrace: trace,
     reviewedAt: new Date().toISOString()

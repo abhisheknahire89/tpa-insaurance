@@ -2525,7 +2525,7 @@
         },
         {
             "id": "ORTHO-002",
-            "icd_code": "M17.11",
+            "icd_code": "M17.0",
             "condition": "Knee Osteoarthritis (TKR)",
             "specialty": "Orthopedics",
             "is_surgical": true,

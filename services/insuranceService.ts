@@ -5,6 +5,7 @@ import {
     UploadedDocument,
     IRDAIPreAuthForm
 } from '../types';
+import { validateCode } from './icdService';
 
 /**
  * Generates specific justification for why OPD management is not appropriate
@@ -290,7 +291,12 @@ Relevant Clinical Findings:
 ${formData.section4_ClinicalDetails.relevantClinicalFindings}
 
 PROVISIONAL DIAGNOSIS: ${formData.section4_ClinicalDetails.provisionalDiagnosis}
-ICD - 10 CODE: ${formData.section4_ClinicalDetails.icd10Code} - ${formData.section4_ClinicalDetails.icd10Description}
+ICD - 10 CODE: ${(() => {
+    const rawIcd = formData.section4_ClinicalDetails.icd10Code;
+    const rawDesc = formData.section4_ClinicalDetails.icd10Description;
+    if (!rawIcd || !validateCode(rawIcd)) return 'Pending ICD-10 — Selection required';
+    return `${rawIcd} - ${rawDesc}`;
+})()}
 
 Proposed Line of Treatment:
 [${formData.section4_ClinicalDetails.proposedLineOfTreatment.medical ? 'X' : ' '}] Medical Management

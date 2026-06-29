@@ -28,7 +28,7 @@ export type RoomCategory =
 
 export type WizardDocCategory =
     | 'insurance_card_front' | 'insurance_card_back' | 'id_proof' | 'pan_card'
-    | 'policy_copy' | 'admission_letter' | 'chest_xray' | 'cbc' | 'abg'
+    | 'policy_copy' | 'admission_letter' | 'chest_xray' | 'xray_knee' | 'cbc' | 'abg'
     | 'ecg' | 'ct_scan' | 'mri' | 'ultrasound' | 'blood_culture'
     | 'urine_routine' | 'lft' | 'kft' | 'covid_test' | 'ns1_antigen'
     | 'dengue_igm' | 'usg_abdomen' | 'prescription' | 'discharge_summary' | 'other';
@@ -130,6 +130,7 @@ export interface PatientRecord {
     state: string;
     pincode: string;
     mobileNumber: string;
+    contactNumber?: string;
     email: string;
     uhid?: string;
     aadhaarNumber?: string;
@@ -147,7 +148,7 @@ export interface PatientRecord {
 
 export interface InsurancePolicyDetails {
     policyNumber: string;
-    policyType: 'Individual' | 'Floater' | 'Corporate' | 'Group';
+    policyType: string;
     policyStartDate: string;
     policyEndDate: string;
     sumInsured: number;
@@ -272,18 +273,18 @@ export interface PastCondition {
 }
 
 export interface PastMedicalHistory {
-    diabetes: PastCondition;
-    hypertension: PastCondition;
-    heartDisease: PastCondition;
-    asthma: PastCondition;
-    epilepsy: PastCondition;
-    cancer: PastCondition;
-    kidney: PastCondition;
-    liver: PastCondition;
-    hiv: PastCondition;
-    alcoholism: PastCondition;
-    smoking: PastCondition;
-    anyOther: PastCondition & { details?: string };
+    diabetes?: PastCondition;
+    hypertension?: PastCondition;
+    heartDisease?: PastCondition;
+    asthma?: PastCondition;
+    epilepsy?: PastCondition;
+    cancer?: PastCondition;
+    kidney?: PastCondition;
+    liver?: PastCondition;
+    hiv?: PastCondition;
+    alcoholism?: PastCondition;
+    smoking?: PastCondition;
+    anyOther?: PastCondition & { details?: string };
 }
 
 export interface AdmissionDetails {
@@ -334,6 +335,7 @@ export interface CostEstimate {
     packageAmount?: number;
     isPackageRate: boolean;
     totalEstimatedCost: number;
+    breakdown?: any;
     amountClaimedFromInsurer: number;
     patientResponsibility: number;
     exceedsSumInsured: boolean;

@@ -1,6 +1,12 @@
 import { reviewEvidence } from '../engine/evidenceReview';
 import { PreAuthRecord } from '../components/PreAuthWizard/types';
 import * as llmClient from '../services/llmClient';
+import { validateCode, lookupICD } from '../services/icdService';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Simple assertion helper
 function assert(condition: boolean, message: string) {
@@ -507,6 +513,202 @@ async function runTests() {
   assert(codingReport3.mandatoryGaps.some(g => g.includes('category "J18" (Pneumonia) is inconsistent')), 'Should flag inconsistency gap');
 
   console.log('✅ Test 7 Passed: Coding compliance (missing/invalid/mismatch) correctly verified.');
+
+  // =========================================================================
+  // TEST case 8: Deterministic clinical-gap rules validation
+  // =========================================================================
+  console.log('\nRunning Test 8: Deterministic Clinical-Gap Rules...');
+
+  const tkrCaseRecord: Partial<PreAuthRecord> = {
+    ...validDeclarationsAndCosts,
+    patient: {
+      patientName: 'Jane Doe',
+      age: 65,
+      gender: 'Female',
+      dateOfBirth: '1961-05-15',
+      address: '123 Main St, Bangalore',
+      uhid: 'UHID-999'
+    },
+    insurance: {
+      policyNumber: 'POL-777',
+      insurerName: 'Care Health Insurance',
+      tpaName: 'Medi Assist TPA',
+      sumInsured: 500000,
+      proposerName: 'John Doe',
+      insuredName: 'Jane Doe'
+    },
+    admission: {
+      admissionType: 'Planned',
+      dateOfAdmission: '2026-07-10',
+      expectedDaysInRoom: 4,
+      pastMedicalHistory: {
+        diabetes: { present: true },
+        hypertension: { present: true }
+      }
+    },
+    clinical: {
+      durationOfPresentAilment: 'N/A', // Trigger blank duration
+      chiefComplaints: 'Severe bilateral knee pain, difficulty walking',
+      historyOfPresentIllness: 'Bilateral knee pain for past few years, now severe',
+      relevantClinicalFindings: 'Severe crepitus, restricted range of motion in both knees',
+      proposedLineOfTreatment: {
+        surgical: true,
+        medical: false,
+        intensiveCare: false,
+        investigation: false,
+        nonAllopathic: false
+      },
+      diagnoses: [
+        {
+          diagnosis: 'Bilateral Knee Osteoarthritis',
+          icd10Code: 'M17.0',
+          icd10Description: 'Bilateral primary osteoarthritis of knee',
+          probability: 0.9,
+          reasoning: '',
+          isSelected: true
+        }
+      ]
+    },
+    costEstimate: {
+      totalEstimatedCost: 200000,
+      amountClaimedFromInsurer: 180000,
+      isPackageRate: false,
+      surgeonFee: 0, // Trigger surgical cost implausibility
+      otCharges: 0,
+      totalImplantsCost: 0
+    }
+  };
+
+  mockLlmResponse({
+    challengesConsidered: [
+      'could this be managed as OPD?',
+      'could this be a pre-existing condition?',
+      'is the stated diagnosis actually supported by the documented findings?'
+    ],
+    anchors: [
+      'Knee radiograph showing joint space narrowing'
+    ],
+    discriminators: []
+  });
+
+  const tkrReport = await reviewEvidence(tkrCaseRecord);
+  assert(tkrReport.status === 'insufficient', 'Bilateral TKR case with gaps should be marked insufficient');
+  
+  // Verify Blank Duration
+  const durationFlag = tkrReport.anticipatedQueries.find(q => q.reason.includes('Disease duration not documented'));
+  assert(!!durationFlag, 'Should flag Blank Duration query');
+  assert(durationFlag?.severity === 'high', 'Blank Duration query must be high severity');
+  assert(durationFlag?.source === 'rule', 'Blank Duration query source must be rule');
+
+  // Verify Conservative Management
+  const conservativeFlag = tkrReport.anticipatedQueries.find(q => q.reason.includes('No conservative-management history'));
+  assert(!!conservativeFlag, 'Should flag Conservative Management query');
+  assert(conservativeFlag?.severity === 'high', 'Conservative Management query must be high severity');
+
+  // Verify Bilateral / Same-Sitting
+  const bilateralFlag = tkrReport.anticipatedQueries.find(q => q.reason.includes('Bilateral/simultaneous procedure'));
+  assert(!!bilateralFlag, 'Should flag Bilateral / Same-Sitting query');
+  assert(bilateralFlag?.severity === 'medium', 'Bilateral query must be medium severity');
+
+  // Verify Cost Implausibility
+  const costFlag = tkrReport.anticipatedQueries.find(q => q.reason.includes('Cost breakdown implausible'));
+  assert(!!costFlag, 'Should flag Cost Implausibility query');
+  assert(costFlag?.severity === 'high', 'Cost Implausibility query must be high severity');
+
+  // Verify PED-Prone Comorbidity
+  const pedFlag = tkrReport.anticipatedQueries.find(q => q.reason.includes('Diabetes/hypertension/cardiac/renal present with no past-treatment history'));
+  assert(!!pedFlag, 'Should flag PED comorbidity query');
+  assert(pedFlag?.severity === 'high', 'PED query must be high severity');
+
+  // Verify Policy Checks are present
+  assert(!!tkrReport.policyChecks && tkrReport.policyChecks.length === 4, 'Should contain four manual policy checks');
+  assert(tkrReport.policyChecks.some(pc => pc.includes('waiting period')), 'Should contain waiting period check');
+
+  console.log('✅ Test 8 Passed: Deterministic clinical-gap rules and policy checks correctly verified.');
+
+  console.log('\n=== Test 9: Hardcoded ICD-10 Source Scanner ===');
+  // Scan TS/TSX source files in restricted directories for hardcoded decimal ICD-10 codes.
+  // Allowlisted: icdService.ts (defines validator), icd_costs_database.json (data), icd10Codes.json (data)
+  const SCAN_DIRS = ['components', 'engine', 'services', 'utils'];
+  const ALLOWLISTED_FILES = [
+    'icdService.ts',
+    'icdSynonymMap.ts',
+    'documentRequirements.ts', // Contains non-code example strings in comments
+  ];
+  const CODE_LITERAL_REGEX = /['"`]([A-Z]\d{2}\.\d{1,4})['"`]/g;
+
+  const rootDir = path.resolve(__dirname, '..');
+  let violations: string[] = [];
+
+  function scanDir(dirPath: string) {
+    if (!fs.existsSync(dirPath)) return;
+    for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+      const full = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        scanDir(full);
+      } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
+        if (ALLOWLISTED_FILES.includes(entry.name)) continue;
+        const src = fs.readFileSync(full, 'utf-8');
+        let m: RegExpExecArray | null;
+        while ((m = CODE_LITERAL_REGEX.exec(src)) !== null) {
+          const codeStr = m[1];
+          // Only flag if it looks like a real ICD-10 code (single letter + 2 digits + dot + 1-4 chars)
+          // and is NOT in the WHO table (i.e. it would be an invalid or CM code)
+          // Ignore placeholder strings that are obvious non-codes
+          if (!validateCode(codeStr)) {
+            const rel = path.relative(rootDir, full);
+            violations.push(`${rel}: found non-WHO code literal "${codeStr}"`);
+          }
+        }
+      }
+    }
+  }
+
+  for (const dir of SCAN_DIRS) {
+    scanDir(path.join(rootDir, dir));
+  }
+
+  if (violations.length > 0) {
+    console.error('❌ Test 9 Failed: Hardcoded non-WHO ICD-10 codes found in source:');
+    violations.forEach(v => console.error('  ', v));
+    process.exit(1);
+  }
+  console.log('✅ Test 9 Passed: No hardcoded non-WHO ICD-10 literal codes found in source files.');
+
+
+  console.log('\n=== Test 10: LLM Direct Code Leak Prevention ===');
+  // Simulate a raw LLM JSON response containing a US ICD-10-CM code string.
+  // assignICDViaModel must NOT return that CM code. It should either:
+  //   (a) Return a valid WHO code derived from the description, or
+  //   (b) Return an empty array (no candidates found from description).
+  // In no case may 'M17.11' appear in the result.
+  const { assignICDViaModel } = await import('../services/icdService');
+
+  // Use the proper mock API so ESM read-only modules are not mutated
+  llmClient.setMockQuery(async () =>
+    JSON.stringify({
+      code: 'M17.11',
+      description: 'Bilateral primary osteoarthritis knee',
+      diagnosis: 'Osteoarthritis of knee, bilateral'
+    })
+  );
+
+  const leakCandidates = await assignICDViaModel('Bilateral knee osteoarthritis');
+  const leakedCode = leakCandidates.find(c => c.code === 'M17.11');
+  assert(!leakedCode, 'Test 10: LLM-suggested CM code M17.11 must NOT appear in candidate output');
+
+  // Restore
+  llmClient.setMockQuery(null);
+
+  // Additionally verify the WHO equivalent is present if any candidates returned
+  if (leakCandidates.length > 0) {
+    const allWho = leakCandidates.every(c => validateCode(c.code));
+    assert(allWho, 'Test 10: All returned candidates must be valid WHO ICD-10 codes');
+  }
+
+  console.log('✅ Test 10 Passed: LLM CM code bypass is blocked; only WHO-validated codes returned.');
+
+
 
   console.log('\n🎉 ALL TESTS PASSED SUCCESSFULLY! 🎉');
   

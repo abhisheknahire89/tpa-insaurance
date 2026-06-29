@@ -3,6 +3,7 @@ import { scoreNecessityStrength } from '../utils/strengthScorer';
 import { getConditionByCode, getConditionByName } from '../config/icd10Database';
 import { calculateCost, findConditionByICD } from './costEstimationService';
 import { calculateTotals } from '../utils/costCalculator';
+import { generatePartC, generatePartCText } from '../engine/partCGenerator';
 
 /**
  * If the cost estimate is all zeros, auto-calculate from ICD cost database.
@@ -194,144 +195,7 @@ ${icdEnrichment}`;
     };
 };
 
-/**
- * Generates the full IRDAI Part C formatted text from a complete PreAuthRecord
- */
 export const generateIRDAITextFromRecord = (record: Partial<PreAuthRecord>): string => {
-    const p = record.patient;
-    const ins = record.insurance;
-    const c = record.clinical;
-    const a = record.admission;
-    // ✅ FIX: Auto-enrich cost from ICD database if totalEstimatedCost is 0
-    const cost = enrichCostFromICD(record);
-    const necessity = record.medicalNecessity;
-    const decl = record.declarations;
-    const selectedDx = c?.diagnoses?.[c.selectedDiagnosisIndex ?? 0];
-
-    // ✅ FIX: Auto-enrich admission LOS from ICD database if expectedLengthOfStay is 0
-    let admissionLOS = a?.expectedLengthOfStay ?? 0;
-    let admissionWard = a?.expectedDaysInRoom ?? 0;
-    let admissionICU = a?.expectedDaysInICU ?? 0;
-    if (admissionLOS === 0 && selectedDx?.icd10Code) {
-        const icdCond = findConditionByICD(selectedDx.icd10Code);
-        if (icdCond) {
-            admissionLOS = icdCond.los.avg;
-            admissionWard = icdCond.los.avg - icdCond.los.icu;
-            admissionICU = icdCond.los.icu;
-            console.log(`[LOSFix] Auto-set LOS from ICD DB: total=${admissionLOS}, ward=${admissionWard}, icu=${admissionICU}`);
-        }
-    }
-
-    const pmh = a?.pastMedicalHistory;
-    const pmhList = pmh ? [
-        pmh.diabetes.present ? `Diabetes (${pmh.diabetes.duration || 'duration N/A'})` : null,
-        pmh.hypertension.present ? `Hypertension (${pmh.hypertension.duration || 'duration N/A'})` : null,
-        pmh.heartDisease.present ? `Heart Disease (${pmh.heartDisease.duration || 'duration N/A'})` : null,
-        pmh.asthma.present ? `Asthma/COPD (${pmh.asthma.duration || 'duration N/A'})` : null,
-        pmh.kidney.present ? `Kidney Disease (${pmh.kidney.duration || 'duration N/A'})` : null,
-        pmh.liver.present ? `Liver Disease (${pmh.liver.duration || 'duration N/A'})` : null,
-    ].filter(Boolean).join(', ') : 'Nil';
-
-    return `
-════════════════════════════════════════════════════════════════════════════════
-                     REQUEST FOR CASHLESS HOSPITALISATION
-          PRE-AUTHORIZATION FORM – PART C (REVISED) — AIVANA GENERATED
-════════════════════════════════════════════════════════════════════════════════
-Pre-Auth ID : ${record.id ?? 'PA-DRAFT'}
-Generated   : ${new Date().toLocaleString('en-IN')}
-Status      : ${record.status?.toUpperCase() ?? 'DRAFT'}
-
-────────────────────────────────────────────────────────────────────────────────
-SECTION 1: INSURANCE / TPA / HOSPITAL DETAILS
-────────────────────────────────────────────────────────────────────────────────
-Insurance Company  : ${ins?.insurerName ?? 'N/A'}
-TPA Name           : ${ins?.tpaName ?? 'N/A'}
-TPA Card No        : ${ins?.tpaIdCardNumber ?? 'N/A'}
-
-────────────────────────────────────────────────────────────────────────────────
-SECTION 2: POLICY DETAILS
-────────────────────────────────────────────────────────────────────────────────
-Policy Number      : ${ins?.policyNumber ?? 'N/A'}
-Policy Type        : ${ins?.policyType ?? 'N/A'}
-Policy Period      : ${ins?.policyStartDate ?? 'N/A'} to ${ins?.policyEndDate ?? 'N/A'}
-Sum Insured        : ₹${(ins?.sumInsured ?? 0).toLocaleString('en-IN')}
-Proposer Name      : ${ins?.proposerName ?? 'N/A'}
-Insured Name       : ${ins?.insuredName ?? 'N/A'}
-Relationship       : ${ins?.relationshipWithProposer ?? 'N/A'}
-${ins?.employeeId ? `Employee ID        : ${ins.employeeId}` : ''}
-${ins?.corporateName ? `Corporate Name     : ${ins.corporateName}` : ''}
-
-────────────────────────────────────────────────────────────────────────────────
-SECTION 3: PATIENT PERSONAL DETAILS
-────────────────────────────────────────────────────────────────────────────────
-Patient Name       : ${p?.patientName ?? 'N/A'}
-Date of Birth      : ${p?.dateOfBirth ?? 'N/A'}
-Age / Gender       : ${p?.age ?? 'N/A'} years / ${p?.gender ?? 'N/A'}
-Marital Status     : ${p?.maritalStatus ?? 'N/A'}
-Occupation         : ${p?.occupation ?? 'N/A'}
-Address            : ${p?.address ?? 'N/A'}, ${p?.city ?? ''}, ${p?.state ?? ''} - ${p?.pincode ?? ''}
-Mobile             : ${p?.mobileNumber ?? 'N/A'}
-UHID               : ${p?.uhid ?? 'N/A'}
-ABHA ID            : ${p?.abhaId ?? 'N/A'}
-
-────────────────────────────────────────────────────────────────────────────────
-SECTION 4: CLINICAL DETAILS (Filled by Treating Doctor)
-────────────────────────────────────────────────────────────────────────────────
-Chief Complaints   : ${c?.chiefComplaints ?? 'N/A'}
-Duration           : ${c?.durationOfPresentAilment ?? 'N/A'}
-Nature of Illness  : ${c?.natureOfIllness ?? 'N/A'}
-
-Relevant Clinical Findings:
-${c?.relevantClinicalFindings ?? 'N/A'}
-
-PROVISIONAL DIAGNOSIS  : ${selectedDx?.diagnosis ?? 'N/A'}
-ICD-10 CODE            : ${selectedDx?.icd10Code ?? 'N/A'} — ${selectedDx?.icd10Description ?? 'N/A'}
-
-Proposed Line of Treatment:
-[${c?.proposedLineOfTreatment?.medical ? 'X' : ' '}] Medical  [${c?.proposedLineOfTreatment?.surgical ? 'X' : ' '}] Surgical  [${c?.proposedLineOfTreatment?.intensiveCare ? 'X' : ' '}] ICU  [${c?.proposedLineOfTreatment?.investigation ? 'X' : ' '}] Investigation
-
-${necessity ? `\n--- MEDICAL NECESSITY & OPD CONTRAINDICATION -----------------------------------\n${necessity.editedText ?? necessity.generatedText}\n--------------------------------------------------------------------------------` : ''}
-
-────────────────────────────────────────────────────────────────────────────────
-SECTION 5: ADMISSION & HOSPITALIZATION DETAILS
-────────────────────────────────────────────────────────────────────────────────
-Date of Admission  : ${a?.dateOfAdmission ?? 'N/A'}
-Time of Admission  : ${a?.timeOfAdmission ?? 'N/A'}
-Admission Type     : ${a?.admissionType ?? 'N/A'}
-Room Category      : ${a?.roomCategory ?? 'N/A'}
-Expected Stay      : ${admissionLOS || 'N/A'} days (Ward: ${admissionWard}, ICU: ${admissionICU})
-
-Past Medical History: ${pmhList || 'Nil'}
-
-────────────────────────────────────────────────────────────────────────────────
-SECTION 6: COST ESTIMATION
-────────────────────────────────────────────────────────────────────────────────
-Room Rent          : ₹${(cost?.totalRoomCharges ?? 0).toLocaleString('en-IN')}
-Nursing Charges    : ₹${(cost?.totalNursingCharges ?? 0).toLocaleString('en-IN')}
-ICU Charges        : ₹${(cost?.totalIcuCharges ?? 0).toLocaleString('en-IN')}
-OT Charges         : ₹${(cost?.otCharges ?? 0).toLocaleString('en-IN')}
-Surgeon Fee        : ₹${(cost?.surgeonFee ?? 0).toLocaleString('en-IN')}
-Anesthetist Fee    : ₹${(cost?.anesthetistFee ?? 0).toLocaleString('en-IN')}
-Consultant Fee     : ₹${(cost?.consultantFee ?? 0).toLocaleString('en-IN')}
-Investigations     : ₹${(cost?.investigationsEstimate ?? 0).toLocaleString('en-IN')}
-Medicines          : ₹${(cost?.medicinesEstimate ?? 0).toLocaleString('en-IN')}
-Consumables        : ₹${(cost?.consumablesEstimate ?? 0).toLocaleString('en-IN')}
-Implants           : ₹${(cost?.totalImplantsCost ?? 0).toLocaleString('en-IN')}
-Misc               : ₹${(cost?.miscCharges ?? 0).toLocaleString('en-IN')}
-────────────────────────────────────────────────────────────
-TOTAL ESTIMATED    : ₹${(cost?.totalEstimatedCost ?? 0).toLocaleString('en-IN')}
-CLAIMED FROM INS.  : ₹${(cost?.amountClaimedFromInsurer ?? 0).toLocaleString('en-IN')}
-
-────────────────────────────────────────────────────────────────────────────────
-SECTION 7: DECLARATIONS
-────────────────────────────────────────────────────────────────────────────────
-Doctor Declaration : Dr. ${decl?.doctor?.doctorName ?? 'N/A'} (Reg: ${decl?.doctor?.doctorRegistrationNumber ?? 'N/A'})
-Confirmed          : ${decl?.doctor?.confirmed ? 'YES — ' + (decl.doctor.confirmationMethod ?? 'in_app') : 'PENDING'}
-
-Patient Consent    : ${decl?.patient?.agreedToTerms ? 'Patient has consented and agreed to terms' : 'PENDING'}
-Hospital Signatory : ${decl?.hospital?.authorizedSignatoryName ?? 'N/A'} (${decl?.hospital?.designation ?? 'N/A'})
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Generated by Aivana Clinical Documentation System | ${new Date().toLocaleString('en-IN')}
-  `.trim();
+    const partC = generatePartC(record, null);
+    return generatePartCText(partC);
 };

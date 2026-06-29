@@ -15,13 +15,37 @@ import { calculateTotals } from '../../utils/costCalculator';
 import { calculateCost, findConditionByICD } from '../../services/costEstimationService';
 import { todayISO, nowTimeString } from '../../utils/formatters';
 import { reviewEvidence } from '../../engine/evidenceReview';
+import { validateCode } from '../../services/icdService';
 
 
 interface PreAuthWizardProps {
     onClose: () => void;
     existingRecord?: PreAuthRecord;
     prefilledData?: Partial<PreAuthRecord>;
+    startAtStep?: 1 | 2 | 3 | 4;
+    defaultTab?: 'docs' | 'necessity' | 'summary' | 'declarations' | 'tpa-review';
+    isDemo?: boolean;
+    onResetDemo?: () => void;
 }
+
+/**
+ * Ensures no ICD-10 code that fails WHO table validation can live in the record.
+ * Any unrecognised code is reset to the 'Pending ICD-10' placeholder so the
+ * user is forced to confirm a valid code via the ICD picker before generating.
+ */
+const sanitizeDiagnoses = (record: Partial<PreAuthRecord>): Partial<PreAuthRecord> => {
+    if (!record.clinical?.diagnoses) return record;
+    const cleaned = record.clinical.diagnoses.map(dx => {
+        const code = dx.icd10Code ?? '';
+        const isPlaceholder = !code || code === 'Pending ICD-10' || code === 'Selection required';
+        if (!isPlaceholder && !validateCode(code)) {
+            console.warn(`[sanitizeDiagnoses] Rejecting unrecognised code "${code}" — resetting to Pending ICD-10`);
+            return { ...dx, icd10Code: 'Pending ICD-10', icd10Description: 'Selection required', isSelected: dx.isSelected };
+        }
+        return dx;
+    });
+    return { ...record, clinical: { ...record.clinical, diagnoses: cleaned } };
+};
 
 const buildEmptyRecord = (): Partial<PreAuthRecord> => ({
     id: generatePreAuthId(),
@@ -71,14 +95,22 @@ const buildEmptyRecord = (): Partial<PreAuthRecord> => ({
     outputs: {},
 });
 
-export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingRecord, prefilledData }) => {
-    const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ 
+    onClose, 
+    existingRecord, 
+    prefilledData,
+    startAtStep = 1,
+    defaultTab,
+    isDemo = false,
+    onResetDemo
+}) => {
+    const [step, setStep] = useState<1 | 2 | 3 | 4>(startAtStep as any);
     const [showVoiceMode, setShowVoiceMode] = useState(false);
     const [record, setRecord] = useState<Partial<PreAuthRecord>>(() => {
-        if (existingRecord) return existingRecord;
+        if (existingRecord) return sanitizeDiagnoses(existingRecord);
         const empty = buildEmptyRecord();
         if (prefilledData) {
-            return {
+            const merged = {
                 ...empty,
                 ...prefilledData,
                 patient: { ...empty.patient, ...prefilledData.patient },
@@ -86,9 +118,11 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
                 admission: { ...empty.admission, ...prefilledData.admission },
                 costEstimate: prefilledData.costEstimate ?? empty.costEstimate,
             };
+            return sanitizeDiagnoses(merged);
         }
         return empty;
     });
+
     const [saving, setSaving] = useState(false);
 
     const updateRecord = useCallback(async (partial: Partial<PreAuthRecord>) => {
@@ -184,6 +218,7 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
             clinical: {
                 ...record.clinical,
                 ...data.clinical,
+                // ICD codes from voice are ALWAYS neutralised — user must confirm via ICD picker
                 diagnoses: data.clinical?.diagnoses?.map((dx, idx) => ({
                     ...dx,
                     icd10Code: 'Pending ICD-10',
@@ -215,15 +250,27 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
     if (showVoiceMode) {
         return (
             <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto">
-                <div className="bg-gray-950 border border-white/10 rounded-2xl w-full max-w-3xl my-8 mx-4 shadow-2xl">
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-                        <div className="flex items-center gap-2">
-                            <span className="text-red-400 font-bold text-sm">🎙️ Voice Dictation</span>
-                            <span className="font-mono text-xs text-gray-500">{record.id}</span>
-                        </div>
+                <div className="bg-gray-950 border border-white/10 rounded-2xl w-full max-w-3xl my-8 mx-4 shadow-2xl overflow-hidden">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-gray-900/20">
                         <div className="flex items-center gap-3">
-                            {saving && <span className="text-xs text-gray-500">💾 Saving...</span>}
-                            <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none transition-colors">✕</button>
+                            <span className="font-semibold text-sm text-white">Voice Dictation</span>
+                            <span className="font-mono text-xs px-2 py-0.5 bg-gray-900 border border-white/5 text-gray-400 rounded-md select-all">{record.id}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            {saving && (
+                                <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                                    <svg className="w-3.5 h-3.5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Saving...
+                                </span>
+                            )}
+                            <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors" type="button">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
                     <div className="px-6 py-6">
@@ -239,39 +286,59 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-gray-950 border border-white/10 rounded-2xl w-full max-w-3xl my-8 mx-4 shadow-2xl">
+            <div className="bg-gray-950 border border-white/10 rounded-2xl w-full max-w-3xl my-8 mx-4 shadow-2xl overflow-hidden">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-                    <div className="flex items-center gap-2">
-                        <span className="text-blue-400 font-bold text-sm">📋 New Pre-Authorization</span>
-                        <span className="font-mono text-xs text-gray-500">{record.id}</span>
-                    </div>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-gray-900/20">
                     <div className="flex items-center gap-3">
-                        {saving && <span className="text-xs text-gray-500">💾 Saving...</span>}
-                        <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none transition-colors">✕</button>
+                        <span className="font-semibold text-sm text-white">New Pre-Authorization</span>
+                        <span className="font-mono text-xs px-2 py-0.5 bg-gray-900 border border-white/5 text-gray-400 rounded-md select-all">{record.id}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        {saving && (
+                            <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                                <svg className="w-3.5 h-3.5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Saving...
+                            </span>
+                        )}
+                        <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors" type="button">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
                 {/* Voice Dictation Banner — shown on step 1 */}
                 {step === 1 && (
-                    <div className="mx-6 mt-4 bg-gradient-to-r from-red-900/20 to-rose-900/10 border border-red-500/20 rounded-xl p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="text-2xl">🎙️</span>
+                    <div className="mx-6 mt-5 bg-gradient-to-r from-red-900/10 via-rose-900/5 to-transparent border border-red-500/10 rounded-2xl p-4 flex items-center justify-between shadow-sm animate-pulse-subtle">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                                </svg>
+                            </div>
                             <div>
-                                <div className="text-sm font-semibold text-white">Voice Dictation — Fastest</div>
-                                <div className="text-xs text-gray-400">Speak clinical notes → AI fills ALL fields instantly</div>
+                                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                                    Voice Dictation
+                                    <span className="text-[9px] uppercase tracking-wider bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-extrabold font-sans">Fastest</span>
+                                </div>
+                                <div className="text-[11px] text-gray-400 mt-0.5">Speak patient & clinical notes → AI auto-fills everything instantly</div>
                             </div>
                         </div>
                         <button
                             onClick={() => setShowVoiceMode(true)}
-                            className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white transition-all hover:scale-105 whitespace-nowrap">
-                            Start Dictating →
+                            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white transition-all shadow-md shadow-red-600/15 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                            type="button">
+                            Start Dictating
                         </button>
                     </div>
                 )}
 
                 {/* Progress Bar */}
-                <div className="px-6 pt-4 pb-3">
+                <div className="px-6 pt-5 pb-3">
                     <WizardProgress currentStep={step} onStepClick={s => s < step && setStep(s)} />
                 </div>
 
@@ -314,6 +381,9 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({ onClose, existingR
                             onRecordChange={r => updateRecord(r)}
                             onBack={handleBack}
                             onGenerate={handleGenerate}
+                            defaultTab={defaultTab}
+                            isDemo={isDemo}
+                            onResetDemo={onResetDemo}
                         />
                     )}
                 </div>

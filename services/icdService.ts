@@ -191,20 +191,26 @@ Identify the closest valid WHO ICD-10 code.`;
     }
 
     const parsed = JSON.parse(cleanText);
-    const proposedCode = parsed.code?.trim().toUpperCase();
+    const proposedDesc = parsed.description || parsed.diagnosis || diagnosis;
     
-    if (proposedCode && validateCode(proposedCode)) {
-      const officialDesc = getDescription(proposedCode);
-      const cat = proposedCode.includes('.') ? proposedCode.split('.')[0] : proposedCode;
-      return [{
-        code: proposedCode,
-        description: officialDesc,
-        category: cat,
-        matchMethod: 'ai_fallback',
-        confidence: 'low'
-      }];
+    console.log(`[icdService] Ignoring direct AI code suggestion "${parsed.code}" and re-deriving from description: "${proposedDesc}"`);
+    
+    const candidates = lookupICD(proposedDesc);
+    if (candidates.length > 0) {
+      return candidates.map(c => ({
+        ...c,
+        matchMethod: 'ai_fallback' as const,
+        confidence: 'low' as const
+      }));
     } else {
-      console.warn(`[icdService] AI proposed invalid or non-WHO code: ${proposedCode}`);
+      const fallbackCandidates = lookupICD(diagnosis);
+      if (fallbackCandidates.length > 0) {
+        return fallbackCandidates.map(c => ({
+          ...c,
+          matchMethod: 'ai_fallback' as const,
+          confidence: 'low' as const
+        }));
+      }
     }
   } catch (error) {
     console.error('[icdService] AI fallback coding failed:', error);

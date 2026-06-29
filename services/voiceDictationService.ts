@@ -88,7 +88,7 @@ export async function parseTranscriptWithGemini(transcript: string): Promise<Voi
   const ai = new GoogleGenAI({ apiKey });
 
   const result = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nDoctor's transcript:\n"""\n${transcript}\n"""` }] }],
     config: { temperature: 0.1, responseMimeType: 'application/json' }
   });
@@ -104,12 +104,16 @@ export async function parseTranscriptWithGemini(transcript: string): Promise<Voi
 
   const diagnoses: DiagnosisEntry[] = (c.diagnoses ?? []).map((d: any, i: number) => ({
     diagnosis: d.diagnosis ?? '',
-    icd10Code: d.icd10Code ?? '',
-    icd10Description: d.icd10Description ?? '',
+    // ICD codes suggested by the LLM are ALWAYS neutralised here.
+    // The description text is preserved so the ICD picker can offer good suggestions,
+    // but the actual code string must be confirmed by the user via the WHO table lookup.
+    icd10Code: 'Pending ICD-10',
+    icd10Description: 'Selection required',
     probability: 0.9,
     reasoning: '',
     isSelected: i === 0,
   }));
+
 
   // voiceCapturedFindings is WizardVoiceFinding[] — leave empty, transcript goes to additionalClinicalNotes
   const voiceCapturedFindings: WizardVoiceFinding[] = [];

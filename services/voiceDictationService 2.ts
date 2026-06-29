@@ -88,7 +88,7 @@ export async function parseTranscriptWithGemini(transcript: string): Promise<Voi
   const ai = new GoogleGenAI({ apiKey });
 
   const result = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nDoctor's transcript:\n"""\n${transcript}\n"""` }] }],
     config: { temperature: 0.1, responseMimeType: 'application/json' }
   });

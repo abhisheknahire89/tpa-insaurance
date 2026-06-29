@@ -18,12 +18,16 @@ const diagnosisDocumentMap: Record<string, DocumentCategory[]> = {
     // Gastrointestinal
     'K35': ['usg_abdomen', 'cbc', 'urine_routine'], // Acute appendicitis
 
+    // Musculoskeletal / Joint
+    'M17': ['xray_knee', 'cbc'],                   // Knee Osteoarthritis (TKR)
+
     // Default for unknown
     'default': ['cbc'],
 };
 
 const documentDetails: Record<DocumentCategory, { displayName: string; description: string }> = {
     'chest_xray': { displayName: 'Chest X-Ray', description: 'PA view chest radiograph' },
+    'xray_knee': { displayName: 'Knee X-Ray', description: 'Bilateral weight-bearing AP/Lateral radiograph' },
     'cbc': { displayName: 'CBC Report', description: 'Complete blood count with differential' },
     'abg': { displayName: 'ABG Report', description: 'Arterial blood gas analysis' },
     'ecg': { displayName: 'ECG', description: '12-lead electrocardiogram' },
@@ -44,7 +48,7 @@ const documentDetails: Record<DocumentCategory, { displayName: string; descripti
 export const getRequiredDocuments = (diagnosisOrIcd10: string): DocumentRequirement[] => {
     let category = 'default';
 
-    // Check if it's an ICD-10 code format (e.g., A90, J18.9)
+    // Check if it's an ICD-10 code format (e.g., A90, J18.9, M17.0)
     if (/^[A-Z][0-9]{2}/.test(diagnosisOrIcd10)) {
         category = diagnosisOrIcd10.substring(0, 3);
     } else {
@@ -55,16 +59,21 @@ export const getRequiredDocuments = (diagnosisOrIcd10: string): DocumentRequirem
         else if (lowerDiag.includes('pneumonia')) category = 'J18';
         else if (lowerDiag.includes('sepsis')) category = 'A41';
         else if (lowerDiag.includes('myocardial') || lowerDiag.includes('mi')) category = 'I21';
+        else if (lowerDiag.includes('osteoarthritis') || lowerDiag.includes('knee') || lowerDiag.includes('tkr')) category = 'M17';
     }
 
     const requiredCategories = diagnosisDocumentMap[category] || diagnosisDocumentMap['default'];
 
-    return requiredCategories.map((cat, index) => ({
-        category: cat,
-        displayName: documentDetails[cat].displayName,
-        isRequired: index < 2, // First 2 are required, rest optional
-        description: documentDetails[cat].description,
-    }));
+    return requiredCategories.map((cat, index) => {
+        // CBC is a routine pre-op investigation, not a critical TPA auto-reject trigger
+        const isRequired = cat === 'cbc' ? false : (index < 2);
+        return {
+            category: cat,
+            displayName: documentDetails[cat].displayName,
+            isRequired,
+            description: documentDetails[cat].description,
+        };
+    });
 };
 
 /**
@@ -73,6 +82,7 @@ export const getRequiredDocuments = (diagnosisOrIcd10: string): DocumentRequirem
 export const guessDocumentCategory = (filename: string): DocumentCategory => {
     const lower = filename.toLowerCase();
 
+    if (lower.includes('knee') && (lower.includes('xray') || lower.includes('x-ray') || lower.includes('film'))) return 'xray_knee';
     if (lower.includes('xray') || lower.includes('x-ray') || lower.includes('cxr')) return 'chest_xray';
     if (lower.includes('cbc') || lower.includes('blood count')) return 'cbc';
     if (lower.includes('abg') || lower.includes('blood gas')) return 'abg';

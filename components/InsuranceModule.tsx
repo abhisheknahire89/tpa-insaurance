@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PreAuthWizard } from './PreAuthWizard';
 import { getRequiredDocuments } from '../data/icd10DocumentMap';
 import { extractInsurancePreAuthData } from '../services/geminiService';
+import { DIABETES_DEMO_RECORD, PNEUMONIA_DEMO_RECORD, APPENDICITIS_DEMO_RECORD } from '../data/demoCases';
 
 // --- TYPES ---
 
@@ -364,6 +365,11 @@ export const InsuranceModule: React.FC = () => {
     const [prefilledData, setPrefilledData] = useState<any>(null);
     const [showWizard, setShowWizard] = useState(false);
 
+    // Demo Mode States
+    const [isDemoMode, setIsDemoMode] = useState(false);
+    const [demoStartStep, setDemoStartStep] = useState<1 | 2 | 3 | 4>(1);
+    const [demoDefaultTab, setDemoDefaultTab] = useState<any>(undefined);
+
     const handleExtract = async () => {
         if (!mockClinicalNote) return;
         setIsExtracting(true);
@@ -379,13 +385,39 @@ export const InsuranceModule: React.FC = () => {
         }
     };
 
+    const runDemoCase = (record: any) => {
+        setPrefilledData(record);
+        setDemoStartStep(4);
+        setDemoDefaultTab('tpa-review');
+        setIsDemoMode(true);
+        setShowWizard(true);
+    };
+
+    const resetDemo = () => {
+        setShowWizard(false);
+        setIsDemoMode(false);
+        setPrefilledData(null);
+    };
+
     return (
         <div className="min-h-screen bg-black text-white p-6">
             <div className="max-w-5xl mx-auto space-y-6">
 
                 {/* Horizontal Stepper */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                    <h1 className="text-2xl font-black text-blue-400">Insurance Center</h1>
+                    <div className="flex items-center gap-4">
+                        <h1 className="text-2xl font-black text-blue-400">Insurance Center</h1>
+                        {/* Demo Mode Toggle Switch */}
+                        <div className="flex items-center bg-gray-900 border border-white/10 rounded-full px-3 py-1 gap-2 select-none animate-pulse">
+                            <span className="text-xs font-bold text-gray-400 tracking-wider">DEMO MODE</span>
+                            <button
+                                onClick={() => setIsDemoMode(!isDemoMode)}
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${isDemoMode ? 'bg-blue-500' : 'bg-gray-700'}`}
+                            >
+                                <div className={`w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${isDemoMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                    </div>
                     <div className="flex space-x-2">
                         <button
                             className={`px-4 py-2 rounded-full text-sm font-bold transition ${activeModule === 'preauth' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
@@ -413,9 +445,135 @@ export const InsuranceModule: React.FC = () => {
                 {/* Content area */}
                 <div className="mt-4">
                     {activeModule === 'preauth' && (
-                        <div className="relative border border-white/10 rounded-xl overflow-hidden min-h-[500px] flex items-center justify-center bg-gray-950">
+                        <div className="relative border border-white/10 rounded-xl overflow-hidden min-h-[500px] flex flex-col items-center justify-center bg-gray-950 p-6">
                             {showWizard ? (
-                                <PreAuthWizard onClose={() => setShowWizard(false)} prefilledData={prefilledData} existingRecord={preAuthOutput?.record} />
+                                <PreAuthWizard
+                                    onClose={resetDemo}
+                                    prefilledData={prefilledData}
+                                    existingRecord={isDemoMode ? (prefilledData as any) : preAuthOutput?.record}
+                                    startAtStep={isDemoMode ? demoStartStep : 1}
+                                    defaultTab={isDemoMode ? demoDefaultTab : undefined}
+                                    isDemo={isDemoMode}
+                                    onResetDemo={isDemoMode ? resetDemo : undefined}
+                                />
+                            ) : isDemoMode ? (
+                                <div className="w-full max-w-4xl space-y-6">
+                                    <div className="text-center space-y-2">
+                                        <div className="inline-block bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                                            ⚡ Presentation Sandbox
+                                        </div>
+                                        <h3 className="text-2xl font-extrabold text-white">Pre-Loaded Demo Scenarios</h3>
+                                        <p className="text-sm text-gray-400 max-w-xl mx-auto">
+                                            Run pre-seeded cases instantly to showcase Aivana's clinical evidence reasoning engine. Go straight to the results in one click.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                                        {/* Scenario A: The Hero (Diabetes) */}
+                                        <div className="bg-gray-900/60 border border-white/10 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-blue-500/30 transition-all hover:scale-[1.01] shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse">
+                                                        HERO SCENARIO
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">ICD-10: {DIABETES_DEMO_RECORD.clinical?.diagnoses?.[0]?.icd10Code ?? '—'}</span>
+                                                </div>
+                                                <h4 className="text-lg font-bold text-white leading-snug">Type 2 Diabetes Mellitus with Hyperglycemia</h4>
+                                                <p className="text-xs text-gray-400 leading-relaxed">
+                                                    Looks complete to checkers: all Part C fields filled, cost estimate present, and documents attached.
+                                                </p>
+                                                <div className="border-t border-white/5 pt-3 space-y-2">
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="text-gray-400">Form Validator Check:</span>
+                                                        <span className="text-green-400 font-bold">✓ COMPLETE</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="text-gray-400">Aivana Clinical Review:</span>
+                                                        <span className="text-red-400 font-bold">✕ BOUNCED (No PED History)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => runDemoCase(DIABETES_DEMO_RECORD)}
+                                                className="w-full py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-1"
+                                            >
+                                                Load Case & Run Review 🚀
+                                            </button>
+                                        </div>
+
+                                        {/* Scenario B: Thin Pneumonia */}
+                                        <div className="bg-gray-900/60 border border-white/10 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-blue-500/30 transition-all hover:scale-[1.01] shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                                        THIN RECORD
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">ICD-10: {PNEUMONIA_DEMO_RECORD.clinical?.diagnoses?.[0]?.icd10Code ?? '—'}</span>
+                                                </div>
+                                                <h4 className="text-lg font-bold text-white leading-snug">Community-Acquired Pneumonia</h4>
+                                                <p className="text-xs text-gray-400 leading-relaxed">
+                                                    An easy win. A thin clinical narrative lacking vital metrics (missing SpO2 saturation) and required attachments.
+                                                </p>
+                                                <div className="border-t border-white/5 pt-3 space-y-2">
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="text-gray-400">Form Validator Check:</span>
+                                                        <span className="text-red-400 font-bold">✕ INCOMPLETE</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="text-gray-400">Aivana Clinical Review:</span>
+                                                        <span className="text-red-400 font-bold">✕ INSUFFICIENT</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => runDemoCase(PNEUMONIA_DEMO_RECORD)}
+                                                className="w-full py-2.5 rounded-xl text-xs font-bold bg-gray-800 hover:bg-gray-700 text-white transition-colors border border-white/10 flex items-center justify-center gap-1"
+                                            >
+                                                Load Case & Run Review 🚀
+                                            </button>
+                                        </div>
+
+                                        {/* Scenario C: Sufficient Appendicitis */}
+                                        <div className="bg-gray-900/60 border border-white/10 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-blue-500/30 transition-all hover:scale-[1.01] shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-green-500/20 text-green-400 border border-green-500/30">
+                                                        SUFFICIENT
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">ICD-10: {APPENDICITIS_DEMO_RECORD.clinical?.diagnoses?.[0]?.icd10Code ?? '—'}</span>
+                                                </div>
+                                                <h4 className="text-lg font-bold text-white leading-snug">Acute Appendicitis (Clean Pass)</h4>
+                                                <p className="text-xs text-gray-400 leading-relaxed">
+                                                    Demonstrates credibility. A case with rich clinical history, clear diagnostic reports, and appropriate surgery planning.
+                                                </p>
+                                                <div className="border-t border-white/5 pt-3 space-y-2">
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="text-gray-400">Form Validator Check:</span>
+                                                        <span className="text-green-400 font-bold">✓ COMPLETE</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="text-gray-400">Aivana Clinical Review:</span>
+                                                        <span className="text-green-400 font-bold">✓ SUFFICIENT</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => runDemoCase(APPENDICITIS_DEMO_RECORD)}
+                                                className="w-full py-2.5 rounded-xl text-xs font-bold bg-gray-800 hover:bg-gray-700 text-white transition-colors border border-white/10 flex items-center justify-center gap-1"
+                                            >
+                                                Load Case & Run Review 🚀
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-center pt-4">
+                                        <button
+                                            onClick={() => setIsDemoMode(false)}
+                                            className="text-xs text-gray-500 hover:text-white underline transition-colors"
+                                        >
+                                            Return to normal sandbox mode
+                                        </button>
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="p-8 w-full max-w-3xl space-y-6">
                                     <h3 className="text-xl font-bold text-gray-200">Test Pre-Auth Flow</h3>

@@ -42,7 +42,7 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
         const existing = c.diagnoses ?? [];
         if (existing.some(d => d.icd10Code === entry.code)) return;
         const newEntry: DiagnosisEntry = {
-            diagnosis: entry.condition_name || (entry.commonName ?? entry.description),
+            diagnosis: entry.commonName ?? entry.description,
             icd10Code: 'Pending ICD-10',
             icd10Description: 'Selection required',
             probability: 0.85,
@@ -83,7 +83,7 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
         return (
             <div className="space-y-6">
                 <div>
-                    <h2 className="text-xl font-bold text-white">Step 2: Clinical Details</h2>
+                    <h2 className="text-lg font-semibold text-white">Clinical Details</h2>
                     <p className="text-gray-400 text-sm mt-1">How would you like to enter clinical details?</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -107,7 +107,7 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                 </div>
                 {dataSource === 'voice_scribe' && (
                     <div className="bg-blue-900/20 border border-blue-500/20 rounded-xl p-4">
-                        <p className="text-blue-300 text-sm">📋 No active NEXUS session found. Using manual entry mode.</p>
+                        <p className="text-blue-300 text-sm">No active voice session found. Continuing in manual entry mode.</p>
                         <button className="mt-2 text-xs text-blue-400 underline" onClick={() => setDataSource('manual_entry')}>Continue with manual entry →</button>
                     </div>
                 )}
@@ -118,94 +118,95 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
     return (
         <div className="space-y-5">
             <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white">Step 2: Clinical Details</h2>
-                <button onClick={() => setDataSource(null)} className="text-xs text-gray-500 hover:text-gray-300">Change source</button>
+                <h2 className="text-base font-semibold text-white">Clinical Details</h2>
+                <button onClick={() => setDataSource(null)} className="text-xs text-gray-400 hover:text-white transition-colors" type="button">Change source</button>
             </div>
 
             {/* Presenting Illness */}
-            <div className="bg-gray-800/50 rounded-xl p-4 space-y-4">
-                <h3 className="font-semibold text-blue-300 text-sm">🩺 Presenting Illness</h3>
+            <div className="bg-gray-900/30 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
+                <h3 className="font-semibold text-blue-400 text-xs flex items-center gap-2 uppercase tracking-wider">🩺 Presenting Illness</h3>
                 <div>
-                    <label className="block text-xs text-gray-400 mb-1">Chief Complaints *</label>
+                    <label className="block text-xs text-gray-400 font-semibold mb-1.5">Chief Complaints <span className="text-red-400 font-bold ml-0.5">*</span></label>
                     <textarea value={c.chiefComplaints ?? ''} onChange={e => update({ chiefComplaints: e.target.value })} rows={2}
-                        className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors"
                         placeholder="Fever, cough, breathlessness..." />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Duration *</label>
+                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Duration <span className="text-red-400 font-bold ml-0.5">*</span></label>
                         <input value={c.durationOfPresentAilment ?? ''} onChange={e => update({ durationOfPresentAilment: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50" placeholder="e.g. 5 days" />
+                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="e.g. 5 days" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1">Nature of Illness *</label>
+                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Nature of Illness <span className="text-red-400 font-bold ml-0.5">*</span></label>
                         <select value={c.natureOfIllness ?? ''} onChange={e => update({ natureOfIllness: e.target.value as any })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50">
+                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors">
                             <option value="">Select</option>
                             <option>Acute</option><option>Chronic</option><option>Acute on Chronic</option>
                         </select>
                     </div>
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-400 mb-1">History of Present Illness</label>
+                    <label className="block text-xs text-gray-400 font-semibold mb-1.5">History of Present Illness</label>
                     <textarea value={c.historyOfPresentIllness ?? ''} onChange={e => update({ historyOfPresentIllness: e.target.value })} rows={3}
-                        className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors"
                         placeholder="Describe onset, progression, associated symptoms, prior treatment tried..." />
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-400 mb-1">Relevant Clinical Findings *</label>
+                    <label className="block text-xs text-gray-400 font-semibold mb-1.5">Relevant Clinical Findings <span className="text-red-400 font-bold ml-0.5">*</span></label>
                     <textarea value={c.relevantClinicalFindings ?? ''} onChange={e => update({ relevantClinicalFindings: e.target.value })} rows={2}
-                        className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors"
                         placeholder="Examination findings, auscultation, palpation etc." />
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-400 mb-1">Prior OPD Treatment (if any)</label>
+                    <label className="block text-xs text-gray-400 font-semibold mb-1.5">Prior OPD Treatment (if any)</label>
                     <textarea value={c.treatmentTakenSoFar ?? ''} onChange={e => update({ treatmentTakenSoFar: e.target.value })} rows={2}
-                        className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors"
                         placeholder="e.g. Oral antibiotics for 3 days without relief..." />
                 </div>
             </div>
 
             {/* Vitals */}
-            <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
-                <h3 className="font-semibold text-blue-300 text-sm">💊 Vitals at Presentation</h3>
+            <div className="bg-gray-900/30 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
+                <h3 className="font-semibold text-blue-400 text-xs flex items-center gap-2 uppercase tracking-wider">💊 Vitals at Presentation</h3>
                 <div className="grid grid-cols-5 gap-3">
                     {([['bp', 'BP (mmHg)', '130/80'], ['pulse', 'Pulse (/min)', '80'], ['temp', 'Temp (°F)', '98.6'], ['spo2', 'SpO2 (%)', '98'], ['rr', 'RR (/min)', '16']] as [keyof WizardVitals, string, string][]).map(([f, label, ph]) => {
-                        let alertClass = '';
-                        if (f === 'spo2' && vitals.spo2 && parseInt(vitals.spo2) < 94) alertClass = 'border-red-500/60 text-red-300';
-                        if (f === 'temp' && vitals.temp && parseFloat(vitals.temp) > 100.4) alertClass = 'border-amber-500/60';
-                        if (f === 'pulse' && vitals.pulse && (parseInt(vitals.pulse) > 100 || parseInt(vitals.pulse) < 60)) alertClass = 'border-amber-500/60';
+                        let alertClass = 'border-white/10 focus:border-blue-500/50';
+                        if (f === 'spo2' && vitals.spo2 && parseInt(vitals.spo2) < 94) alertClass = 'border-red-500/40 text-red-300 bg-red-500/5 focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20';
+                        else if (f === 'temp' && vitals.temp && parseFloat(vitals.temp) > 100.4) alertClass = 'border-amber-500/40 text-amber-300 bg-amber-500/5 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20';
+                        else if (f === 'pulse' && vitals.pulse && (parseInt(vitals.pulse) > 100 || parseInt(vitals.pulse) < 60)) alertClass = 'border-amber-500/40 text-amber-300 bg-amber-500/5 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20';
                         return (
                             <div key={f}>
-                                <label className="block text-xs text-gray-400 mb-1">{label}</label>
+                                <label className="block text-[10px] text-gray-400 font-semibold mb-1">{label}</label>
                                 <input value={vitals[f] ?? ''} onChange={e => handleVitalChange(f, e.target.value)}
-                                    className={`w-full bg-gray-900 border rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 ${alertClass || 'border-white/10'}`}
+                                    className={`w-full bg-gray-900 border rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition-colors ${alertClass}`}
                                     placeholder={ph} />
                             </div>
                         );
                     })}
                 </div>
                 {spo2Val < 94 && vitals.spo2 && (
-                    <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-2 text-red-300 text-xs">
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-3 text-red-300 text-xs font-semibold leading-relaxed">
                         ⚠️ SpO2 {vitals.spo2}% — Hypoxia detected. This strongly supports inpatient necessity.
                     </div>
                 )}
             </div>
 
             {/* Diagnosis */}
-            <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
-                <h3 className="font-semibold text-blue-300 text-sm">🔬 Diagnosis</h3>
+            <div className="bg-gray-900/30 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
+                <h3 className="font-semibold text-blue-400 text-xs flex items-center gap-2 uppercase tracking-wider">🔬 Diagnosis</h3>
                 <div className="relative">
                     <input value={icdQuery} onChange={e => handleIcdSearch(e.target.value)}
-                        className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
-                        placeholder="Search diagnosis by name or ICD-10 code (e.g. Pneumonia or J18)..." />
+                        className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors"
+                        placeholder="Search diagnosis by name or ICD-10 code (e.g. Pneumonia)..." />
                     {icdResults.length > 0 && (
-                        <div className="absolute z-20 w-full bg-gray-900 border border-white/20 rounded-xl mt-1 shadow-xl overflow-hidden">
+                        <div className="absolute z-20 w-full bg-gray-900 border border-white/10 rounded-xl mt-1.5 shadow-xl max-h-56 overflow-y-auto divide-y divide-white/5">
                             {icdResults.map(r => (
                                 <button key={r.code} onClick={() => addDiagnosis(r)}
-                                    className="w-full px-4 py-2.5 text-left hover:bg-white/10 text-sm flex justify-between items-center">
-                                    <span className="text-white">{r.commonName ?? r.description}</span>
-                                    <span className="font-mono text-xs text-blue-400">{r.code}</span>
+                                    className="w-full px-4 py-3 text-left hover:bg-white/5 text-sm flex justify-between items-center transition-colors"
+                                    type="button">
+                                    <span className="text-white font-medium">{r.commonName ?? r.description}</span>
+                                    <span className="font-mono text-xs bg-blue-500/10 border border-blue-500/10 text-blue-400 px-2 py-0.5 rounded-md">{r.code}</span>
                                 </button>
                             ))}
                         </div>
@@ -214,21 +215,27 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                 {(c.diagnoses ?? []).length > 0 && (
                     <div className="space-y-2">
                         {(c.diagnoses ?? []).map((dx, i) => (
-                            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${dx.isSelected ? 'bg-blue-600/20 border-blue-500/50' : 'bg-gray-900 border-white/10 hover:border-white/20'}`}
+                            <div key={i} className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors ${dx.isSelected ? 'bg-blue-600/10 border-blue-500/40' : 'bg-gray-900/50 border-white/5 hover:border-white/10'}`}
                                 onClick={() => selectPrimaryDx(i)}>
-                                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${dx.isSelected ? 'bg-blue-500 border-blue-400' : 'border-gray-500'}`} />
+                                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${dx.isSelected ? 'border-blue-400' : 'border-gray-600'}`}>
+                                    {dx.isSelected && <div className="w-2 h-2 rounded-full bg-blue-400" />}
+                                </div>
                                 <div className="flex-1">
-                                    <div className="text-sm font-medium text-white">{dx.diagnosis}</div>
-                                    <div className="text-xs text-gray-400">
+                                    <div className="text-xs font-semibold text-white">{dx.diagnosis}</div>
+                                    <div className="text-[11px] text-gray-400 mt-0.5">
                                         {dx.icd10Code.includes('Pending') ? (
-                                            <span className="text-amber-400">⚠️ {dx.icd10Code} — {dx.icd10Description}</span>
+                                            <span className="text-amber-400 font-medium">⚠️ {dx.icd10Code} — {dx.icd10Description}</span>
                                         ) : (
-                                            <span>{dx.icd10Code} — {dx.icd10Description}</span>
+                                            <span className="font-medium">{dx.icd10Code} — {dx.icd10Description}</span>
                                         )}
                                     </div>
                                 </div>
-                                {dx.isSelected && <span className="text-xs text-blue-400 font-semibold">Primary</span>}
-                                <button onClick={e => { e.stopPropagation(); removeDx(i); }} className="text-gray-600 hover:text-red-400 text-xs p-1">✕</button>
+                                {dx.isSelected && <span className="text-[10px] bg-blue-500/15 border border-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Primary</span>}
+                                <button onClick={e => { e.stopPropagation(); removeDx(i); }} className="text-gray-500 hover:text-red-400 p-1.5 hover:bg-white/5 rounded-lg transition-all" type="button">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -268,22 +275,21 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                         </div>
                     );
                 })()}
-
             </div>
 
             {/* Treatment Plan */}
-            <div className="bg-gray-800/50 rounded-xl p-4 space-y-4">
-                <h3 className="font-semibold text-blue-300 text-sm">📋 Proposed Treatment Plan</h3>
+            <div className="bg-gray-900/30 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
+                <h3 className="font-semibold text-blue-400 text-xs flex items-center gap-2 uppercase tracking-wider">📋 Proposed Treatment Plan</h3>
                 <div>
-                    <label className="block text-xs text-gray-400 mb-2">Line of Treatment * (check all that apply)</label>
+                    <label className="block text-xs text-gray-400 font-semibold mb-2">Line of Treatment <span className="text-red-400 font-bold ml-0.5">*</span></label>
                     <div className="flex flex-wrap gap-3">
                         {([['medical', 'Medical Management'], ['surgical', 'Surgical Management'], ['intensiveCare', 'Intensive Care'], ['investigation', 'Investigation Only'], ['nonAllopathic', 'Non-Allopathic']] as const).map(([key, label]) => (
-                            <label key={key} className="flex items-center gap-2 cursor-pointer">
+                            <label key={key} className="flex items-center gap-2 cursor-pointer bg-gray-950/40 border border-white/5 hover:border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-gray-300 transition-colors select-none">
                                 <input type="checkbox"
                                     checked={c.proposedLineOfTreatment?.[key] ?? false}
                                     onChange={e => update({ proposedLineOfTreatment: { ...{ medical: false, surgical: false, intensiveCare: false, investigation: false, nonAllopathic: false }, ...c.proposedLineOfTreatment, [key]: e.target.checked } })}
-                                    className="accent-blue-500" />
-                                <span className="text-sm text-gray-300" onClick={() => {
+                                    className="accent-blue-500 w-4 h-4 rounded" />
+                                <span className="font-medium" onClick={() => {
                                     if (key === 'surgical') setShowSurgery(prev => !prev);
                                 }}>{label}</span>
                             </label>
@@ -291,50 +297,52 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                     </div>
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-400 mb-1">Why is OPD management NOT appropriate? * <span className="text-gray-500">(critical for TPA approval)</span></label>
+                    <label className="block text-xs text-gray-400 font-semibold mb-1.5">Why is OPD management NOT appropriate? <span className="text-red-400 font-bold ml-0.5">*</span> <span className="text-gray-500 font-normal">(critical for TPA approval)</span></label>
                     <textarea value={c.reasonForHospitalisation ?? ''} onChange={e => update({ reasonForHospitalisation: e.target.value })} rows={3}
-                        className="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors"
                         placeholder="e.g. Patient requires IV antibiotics, continuous oxygen therapy, and hemodynamic monitoring which cannot be accomplished on outpatient basis." />
                 </div>
 
                 {/* Conditional Panels */}
-                <div className="space-y-3">
-                    <button onClick={() => setShowInjury(p => !p)} className="text-xs text-blue-400 hover:underline">
-                        {showInjury ? '▼' : '▶'} Is this an injury/accident case?
+                <div className="space-y-3 pt-2">
+                    <button onClick={() => setShowInjury(p => !p)} className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors" type="button">
+                        <span className="text-[10px]">{showInjury ? '▼' : '▶'}</span> Is this an injury/accident case?
                     </button>
                     {showInjury && (
-                        <div className="bg-gray-900 rounded-xl p-4 grid grid-cols-2 gap-3">
+                        <div className="bg-gray-900/60 border border-white/5 rounded-2xl p-4 grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs text-gray-400 mb-1">Date of Injury</label>
+                                <label className="block text-xs text-gray-400 font-semibold mb-1.5">Date of Injury</label>
                                 <input type="date" value={c.injuryDetails?.dateOfInjury ?? ''} onChange={e => update({ injuryDetails: { ...c.injuryDetails as any, isInjury: true, dateOfInjury: e.target.value, isMLC: c.injuryDetails?.isMLC ?? false } })}
-                                    className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none" />
+                                    className="w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none" />
                             </div>
                             <div>
-                                <label className="block text-xs text-gray-400 mb-1">Cause of Injury</label>
+                                <label className="block text-xs text-gray-400 font-semibold mb-1.5">Cause of Injury</label>
                                 <input value={c.injuryDetails?.causeOfInjury ?? ''} onChange={e => update({ injuryDetails: { ...c.injuryDetails as any, isInjury: true, causeOfInjury: e.target.value, isMLC: c.injuryDetails?.isMLC ?? false } })}
-                                    className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none" placeholder="Road accident, fall..." />
+                                    className="w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none placeholder-gray-600" placeholder="Road accident, fall..." />
                             </div>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={c.injuryDetails?.isMLC ?? false} onChange={e => update({ injuryDetails: { ...c.injuryDetails as any, isInjury: true, isMLC: e.target.checked } })} className="accent-blue-500" />
-                                <span className="text-sm text-gray-300">Medico-Legal Case (MLC)</span>
-                            </label>
+                            <div className="col-span-2 flex items-center mt-1">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={c.injuryDetails?.isMLC ?? false} onChange={e => update({ injuryDetails: { ...c.injuryDetails as any, isInjury: true, isMLC: e.target.checked } })} className="accent-blue-500 w-4 h-4 rounded" />
+                                    <span className="text-xs text-gray-300 font-medium select-none">Medico-Legal Case (MLC)</span>
+                                </label>
+                            </div>
                         </div>
                     )}
 
-                    <button onClick={() => setShowSurgery(p => !p)} className="text-xs text-blue-400 hover:underline">
-                        {showSurgery ? '▼' : '▶'} Add surgery details
+                    <button onClick={() => setShowSurgery(p => !p)} className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors" type="button">
+                        <span className="text-[10px]">{showSurgery ? '▼' : '▶'}</span> Add surgery details
                     </button>
                     {showSurgery && (
-                        <div className="bg-gray-900 rounded-xl p-4 grid grid-cols-2 gap-3">
+                        <div className="bg-gray-900/60 border border-white/5 rounded-2xl p-4 grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs text-gray-400 mb-1">Name of Surgery *</label>
+                                <label className="block text-xs text-gray-400 font-semibold mb-1.5">Name of Surgery <span className="text-red-400 font-bold ml-0.5">*</span></label>
                                 <input value={c.surgeryDetails?.nameOfSurgery ?? ''} onChange={e => update({ surgeryDetails: { ...c.surgeryDetails as any, nameOfSurgery: e.target.value, routeOfSurgery: c.surgeryDetails?.routeOfSurgery ?? 'Open' } })}
-                                    className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none" placeholder="e.g. Laparoscopic Appendicectomy" />
+                                    className="w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none placeholder-gray-600" placeholder="e.g. Laparoscopic Appendicectomy" />
                             </div>
                             <div>
-                                <label className="block text-xs text-gray-400 mb-1">Route of Surgery</label>
+                                <label className="block text-xs text-gray-400 font-semibold mb-1.5">Route of Surgery</label>
                                 <select value={c.surgeryDetails?.routeOfSurgery ?? 'Open'} onChange={e => update({ surgeryDetails: { ...c.surgeryDetails as any, nameOfSurgery: c.surgeryDetails?.nameOfSurgery ?? '', routeOfSurgery: e.target.value as any } })}
-                                    className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                                    className="w-full bg-gray-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
                                     <option>Open</option><option>Laparoscopic</option><option>Endoscopic</option><option>Robotic</option><option>Other</option>
                                 </select>
                             </div>
@@ -343,14 +351,16 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-                <button onClick={onBack} className="py-3 rounded-xl font-semibold text-sm bg-gray-800 hover:bg-gray-700 text-white transition-colors">← Back</button>
-                <button onClick={onNext} disabled={!isValid}
-                    className={`py-3 rounded-xl font-semibold text-sm transition-all ${isValid ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+                <button onClick={onBack} className="py-2.5 rounded-xl font-semibold text-sm bg-gray-900 border border-white/10 hover:bg-gray-800 text-gray-300 hover:text-white transition-colors duration-200 active:scale-[0.98]" type="button">
+                    ← Back
+                </button>
+                <button onClick={onNext} disabled={!isValid} type="button"
+                    className={`py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${isValid ? 'bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 text-white shadow-md shadow-blue-500/10 hover:scale-[1.01] active:scale-[0.99]' : 'bg-gray-900 border border-white/5 text-gray-500 cursor-not-allowed'}`}>
                     Continue to Admission & Cost →
                 </button>
             </div>
-            {!isValid && <p className="text-xs text-amber-400 text-center">Add diagnosis (with confirmed ICD-10 code), treatment line, and OPD justification to continue</p>}
+            {!isValid && <p className="text-xs text-amber-500 font-medium text-center">Add diagnosis (with confirmed ICD-10 code), treatment line, and OPD justification to continue</p>}
         </div>
     );
 };

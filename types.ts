@@ -282,6 +282,7 @@ export interface NexusInsuranceInput {
 
 export type DocumentCategory =
   | 'chest_xray'
+  | 'xray_knee'
   | 'cbc'
   | 'abg'
   | 'ecg'
