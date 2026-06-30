@@ -82,7 +82,7 @@ export const checkDiagnosisCoding = (record: Partial<PreAuthRecord>): string[] =
 /**
  * Helper to identify if a term is negated in the narrative (e.g., "no SpO2", "not documented", "imaging details missing")
  */
-const isNegated = (term: string, narrative: string): boolean => {
+export const isNegated = (term: string, narrative: string): boolean => {
   const cleanTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '\\s*[-]?\\s*');
   
   // 1. Negation word BEFORE the term (within 25 chars, not crossing sentence boundaries)
@@ -99,7 +99,7 @@ const isNegated = (term: string, narrative: string): boolean => {
 /**
  * Helper to check if a word is present in the narrative with proper word boundaries
  */
-const hasWord = (term: string, narrative: string): boolean => {
+export const hasWord = (term: string, narrative: string): boolean => {
   const cleanTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '\\s*[-]?\\s*');
   const regex = new RegExp(`\\b${cleanTerm}\\b`, 'i');
   return regex.test(narrative);
@@ -839,7 +839,7 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
 /**
  * Sanitizes queries to remove specific drug names, dosage values, computed probabilities, or TPA auto-reject language.
  */
-function sanitizeQueryText(text: string): string {
+export function sanitizeQueryText(text: string): string {
   let cleaned = text;
 
   // 1. Replace specific drug names with neutral clinical terms

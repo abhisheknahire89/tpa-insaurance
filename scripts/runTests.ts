@@ -8,6 +8,20 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Mock localStorage globally for Node context (required for logging tests)
+const store: Record<string, string> = {};
+(global as any).localStorage = {
+  getItem: (key: string) => store[key] || null,
+  setItem: (key: string, value: string) => { store[key] = value; },
+  removeItem: (key: string) => { delete store[key]; },
+  clear: () => { for (const k in store) delete store[k]; },
+  length: 0,
+  key: (index: number) => null,
+} as any;
+
+import { reviewEnhancement, EnhancementInput } from '../engine/enhancementReview';
+import { logEvent, getAllLogs } from '../utils/auditLog';
+
 // Simple assertion helper
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -708,7 +722,61 @@ async function runTests() {
 
   console.log('✅ Test 10 Passed: LLM CM code bypass is blocked; only WHO-validated codes returned.');
 
+  // =========================================================================
+  // TEST case 11: Stay Extension & Enhancement Review Engine Validation
+  // =========================================================================
+  console.log('\nRunning Test 11: Stay Extension & Enhancement Review Engine...');
 
+  llmClient.setMockQuery(async () =>
+    JSON.stringify({
+      challengesConsidered: ['why is stay extending?', 'does clinical status justify extension?'],
+      anchors: ['Slow clinical recovery'],
+      discriminators: [
+        {
+          challenge: 'why is stay extending?',
+          evidence: 'Slow clinical recovery',
+          reason: 'To prove stay extension necessity.'
+        }
+      ]
+    })
+  );
+
+  const testInput: EnhancementInput = {
+    originalApprovalRef: 'APP-54321',
+    originalApprovedAmount: 200000,
+    amountUtilizedToDate: 150000,
+    trigger: 'extended_stay',
+    additionalAmountRequested: 60000,
+    dischargeDelayReasons: ['Slow clinical recovery / ongoing wound care'],
+    originalDischargeDate: '2026-06-30',
+    newDischargeDate: '2026-07-04',
+    currentSeverityScores: {
+      phenoIntensity: 7,
+      deteriorationVelocity: 6
+    }
+  };
+
+  const report = await reviewEnhancement(testInput, 'Sepsis secondary to UTI');
+  assert(report.status === 'sufficient', 'Test 11: Valid stay extension request must evaluate to sufficient');
+  assert(report.gaps.length === 0, 'Test 11: Sufficient case must contain zero deterministic gaps');
+
+  // Verify Audit Logging
+  logEvent('CASE-TEST-11', 'enhancement_reviewed', {
+    status: report.status,
+    gapCount: report.gaps.length,
+    insufficientItems: report.insufficientEvidence,
+    originalApprovalRef: testInput.originalApprovalRef,
+    additionalAmountRequested: testInput.additionalAmountRequested
+  });
+
+  const logs = getAllLogs();
+  const matchedLogs = logs.filter(l => l.caseId === 'CASE-TEST-11' && l.eventType === 'enhancement_reviewed');
+  assert(matchedLogs.length > 0, 'Test 11: Enhancement review event must be audit logged in localStorage');
+  assert((matchedLogs[0].payload as any).status === 'sufficient', 'Test 11: Logged payload property status must match sufficient');
+
+  console.log('✅ Test 11 Passed: Stay extension review and complete audit logging validated successfully.');
+
+  llmClient.setMockQuery(null);
 
   console.log('\n🎉 ALL TESTS PASSED SUCCESSFULLY! 🎉');
   

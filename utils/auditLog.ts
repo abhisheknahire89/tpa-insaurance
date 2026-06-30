@@ -37,7 +37,8 @@ export type AuditEventType =
   | 'submitted_insufficient'
   | 'tpa_response_received'
   | 'document_uploaded'
-  | 'document_removed';
+  | 'document_removed'
+  | 'enhancement_reviewed';
 
 export interface AuditEntry {
   id: string;          // uuid v4, stable across sessions
@@ -85,6 +86,14 @@ export interface TpaResponsePayload {
   denialReason?: string;
   queryDetails?: string;
   respondedAt: string;
+}
+
+export interface EnhancementReviewedPayload {
+  status: 'sufficient' | 'pending_documents';
+  gapCount: number;
+  insufficientItems: string[];
+  originalApprovalRef: string;
+  additionalAmountRequested: number;
 }
 
 // ============================================

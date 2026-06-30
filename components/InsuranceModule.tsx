@@ -3,33 +3,10 @@ import { PreAuthWizard } from './PreAuthWizard';
 import { getRequiredDocuments } from '../data/icd10DocumentMap';
 import { extractInsurancePreAuthData } from '../services/geminiService';
 import { DIABETES_DEMO_RECORD, PNEUMONIA_DEMO_RECORD, APPENDICITIS_DEMO_RECORD } from '../data/demoCases';
+import { reviewEnhancement, EnhancementReviewReport, EnhancementInput, EnhancementTrigger } from '../engine/enhancementReview';
+import { logEvent } from '../utils/auditLog';
 
 // --- TYPES ---
-
-export type EnhancementTrigger = 'new_procedure' | 'extended_stay' | 'icu_upgrade';
-
-export interface EnhancementInput {
-    originalApprovalRef: string;
-    originalApprovedAmount: number;
-    amountUtilizedToDate: number;
-    trigger: EnhancementTrigger;
-    newProcedureName?: string;
-    newProcedureCode?: string;
-    newProcedureDate?: string;
-    newProcedureForeseeable?: boolean;
-    clinicalFindingTriggeringProcedure?: string;
-    originalDischargeDate?: string;
-    newDischargeDate?: string;
-    dischargeDelayReasons?: string[];
-    deteriorationDateTime?: string;
-    deteriorationVitals?: string;
-    icuIntervention?: string;
-    additionalAmountRequested: number;
-    currentSeverityScores?: {
-        phenoIntensity: number;
-        deteriorationVelocity: number;
-    };
-}
 
 export interface DischargeDayEntry {
     day: number;
@@ -81,25 +58,38 @@ export interface ReimbursementInput {
 
 // --- GENERATOR FUNCTIONS ---
 
-const generateEnhancementDocument = (trigger: EnhancementTrigger, input: EnhancementInput, preAuthData: any) => {
+const generateEnhancementDocument = (
+    trigger: EnhancementTrigger,
+    input: EnhancementInput,
+    preAuthData: any,
+    report?: EnhancementReviewReport
+) => {
     let triggerDetails = '';
     switch (trigger) {
         case 'new_procedure':
-            triggerDetails = `New Procedure: ${input.newProcedureName} (${input.newProcedureCode})\nDate: ${input.newProcedureDate}\nWas foreseeable: ${input.newProcedureForeseeable ? 'Yes' : 'No'}\nClinical Finding: ${input.clinicalFindingTriggeringProcedure}`;
+            triggerDetails = `New Procedure: ${input.newProcedureName || 'N/A'} (${input.newProcedureCode || 'N/A'})\nDate: ${input.newProcedureDate || 'N/A'}\nWas foreseeable: ${input.newProcedureForeseeable ? 'Yes' : 'No'}\nClinical Finding: ${input.clinicalFindingTriggeringProcedure || 'N/A'}`;
             break;
         case 'extended_stay':
-            triggerDetails = `Original Discharge: ${input.originalDischargeDate}\nNew Expected Discharge: ${input.newDischargeDate}\nReasons for delay: ${input.dischargeDelayReasons?.join(', ')}`;
+            triggerDetails = `Original Discharge: ${input.originalDischargeDate || 'N/A'}\nNew Expected Discharge: ${input.newDischargeDate || 'N/A'}\nReasons for delay: ${input.dischargeDelayReasons?.join(', ') || 'None'}`;
             break;
         case 'icu_upgrade':
-            triggerDetails = `Deterioration DateTime: ${input.deteriorationDateTime}\nVitals: ${input.deteriorationVitals}\nICU Intervention: ${input.icuIntervention}`;
+            triggerDetails = `Deterioration DateTime: ${input.deteriorationDateTime || 'N/A'}\nVitals: ${input.deteriorationVitals || 'N/A'}\nICU Intervention: ${input.icuIntervention || 'N/A'}`;
             break;
     }
 
     const preauthPatient = preAuthData?.patient?.patientName || preAuthData?.record?.patient?.patientName || 'N/A';
     const preauthDiagnosis = preAuthData?.clinical?.diagnoses?.[0]?.diagnosis || preAuthData?.record?.clinical?.diagnoses?.[0]?.diagnosis || 'N/A';
 
+    const statusText = report ? report.status.toUpperCase().replace('_', ' ') : 'PENDING REVIEW';
+    const gapsText = report && report.gaps.length > 0
+        ? `GAPS DETECTED:\n${report.gaps.map((g, i) => `  ${i + 1}. ${g}`).join('\n')}`
+        : 'GAPS DETECTED: None';
+    const queriesText = report && report.anticipatedQueries.length > 0
+        ? `ANTICIPATED TPA QUERIES:\n${report.anticipatedQueries.map((q, i) => `  ${i + 1}. [${q.severity.toUpperCase()}] ${q.query}\n     Reason: ${q.reason}`).join('\n')}`
+        : 'ANTICIPATED TPA QUERIES: None';
+
     return `
-ENHANCEMENT REQUEST DOCUMENT
+ENHANCEMENT REQUEST DOCUMENT (Status: ${statusText})
 ----------------------------------------
 Original Approval Reference: ${input.originalApprovalRef}
 Original Approved Amount: ₹${input.originalApprovedAmount}
@@ -118,6 +108,12 @@ TOTAL CLAIM AMOUNT (Est): ₹${Number(input.originalApprovedAmount) + Number(inp
 PRE-AUTH CONTEXT:
 Patient: ${preauthPatient}
 Diagnosis: ${preauthDiagnosis}
+
+----------------------------------------
+AIVANA CLINICAL DOCUMENTATION AUDIT:
+${gapsText}
+
+${queriesText}
 `.trim();
 };
 
@@ -212,70 +208,252 @@ export const EnhancementModule: React.FC<{ preAuthData: any }> = ({ preAuthData 
         trigger: 'extended_stay',
         additionalAmountRequested: 0,
         dischargeDelayReasons: [],
+        originalDischargeDate: '',
+        newDischargeDate: '',
+        newProcedureName: '',
+        newProcedureCode: '',
+        newProcedureDate: '',
+        newProcedureForeseeable: false,
+        clinicalFindingTriggeringProcedure: '',
+        deteriorationDateTime: '',
+        deteriorationVitals: '',
+        icuIntervention: '',
+        currentSeverityScores: {
+            phenoIntensity: 1,
+            deteriorationVelocity: 1,
+        }
     });
-    const [doc, setDoc] = useState('');
 
-    const handleGenerate = () => {
-        setDoc(generateEnhancementDocument(input.trigger, input, preAuthData));
+    const [doc, setDoc] = useState('');
+    const [reviewLoading, setReviewLoading] = useState(false);
+    const [report, setReport] = useState<EnhancementReviewReport | null>(null);
+
+    const handleGenerate = async () => {
+        setReviewLoading(true);
+        try {
+            const diagnosis = preAuthData?.clinical?.diagnoses?.[0]?.diagnosis || preAuthData?.record?.clinical?.diagnoses?.[0]?.diagnosis || 'Type 2 diabetes mellitus';
+            const rep = await reviewEnhancement(input, diagnosis);
+            setReport(rep);
+            setDoc(generateEnhancementDocument(input.trigger, input, preAuthData, rep));
+
+            // Log event: enhancement_reviewed
+            const caseId = preAuthData?.id || preAuthData?.record?.id || 'UNKNOWN';
+            logEvent(caseId, 'enhancement_reviewed', {
+                status: rep.status,
+                gapCount: rep.gaps.length,
+                insufficientItems: rep.insufficientEvidence,
+                originalApprovalRef: input.originalApprovalRef,
+                additionalAmountRequested: input.additionalAmountRequested
+            });
+        } catch (err) {
+            console.error("Failed to run enhancement review:", err);
+        } finally {
+            setReviewLoading(false);
+        }
     };
 
+    const handleDelayReasonChange = (reason: string, checked: boolean) => {
+        const current = input.dischargeDelayReasons || [];
+        const next = checked
+            ? [...current, reason]
+            : current.filter(r => r !== reason);
+        setInput({ ...input, dischargeDelayReasons: next });
+    };
+
+    const DELAY_REASONS = [
+        'Surgical recovery / postoperative monitoring required',
+        'Acute post-op pain / hemodynamics management',
+        'Slow clinical recovery / ongoing wound care',
+        'Awaiting critical laboratory or culture reports',
+        'Active infection treatment / intravenous antibiotics',
+        'Post-procedure complications (e.g. hematoma, urinary retention)'
+    ];
+
     return (
-        <div className="p-4 bg-gray-900 text-white rounded-lg shadow-md space-y-4">
-            <h2 className="text-xl font-bold">Enhancement Request</h2>
-            <div className="grid grid-cols-2 gap-4">
+        <div className="p-6 bg-gray-900 border border-white/5 text-white rounded-2xl shadow-xl space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold tracking-tight">Enhancement / Stay Extension Request</h2>
+                {report && (
+                    <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-bold border ${
+                        report.status === 'sufficient'
+                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/10'
+                            : 'bg-red-500/15 text-red-400 border-red-500/10'
+                    }`}>
+                        {report.status === 'sufficient' ? 'Complete (Sufficient)' : 'Pending Documents'}
+                    </span>
+                )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
-                    <label className="block text-sm">Original Approval Reference</label>
-                    <input className="w-full p-2 bg-gray-800 rounded border border-gray-700" value={input.originalApprovalRef} onChange={e => setInput({ ...input, originalApprovalRef: e.target.value })} />
+                    <label className="block text-xs text-gray-400 font-semibold mb-1">Original Approval Reference</label>
+                    <input className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.originalApprovalRef} onChange={e => setInput({ ...input, originalApprovalRef: e.target.value })} />
                 </div>
                 <div>
-                    <label className="block text-sm">Original Approved Amount (₹)</label>
-                    <input type="number" className="w-full p-2 bg-gray-800 rounded border border-gray-700" value={input.originalApprovedAmount} onChange={e => setInput({ ...input, originalApprovedAmount: Number(e.target.value) })} />
+                    <label className="block text-xs text-gray-400 font-semibold mb-1">Original Approved Amount (₹)</label>
+                    <input type="number" className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.originalApprovedAmount || ''} onChange={e => setInput({ ...input, originalApprovedAmount: Number(e.target.value) })} />
                 </div>
                 <div>
-                    <label className="block text-sm">Amount Utilized to Date (₹)</label>
-                    <input type="number" className="w-full p-2 bg-gray-800 rounded border border-gray-700" value={input.amountUtilizedToDate} onChange={e => setInput({ ...input, amountUtilizedToDate: Number(e.target.value) })} />
+                    <label className="block text-xs text-gray-400 font-semibold mb-1">Amount Utilized to Date (₹)</label>
+                    <input type="number" className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.amountUtilizedToDate || ''} onChange={e => setInput({ ...input, amountUtilizedToDate: Number(e.target.value) })} />
                 </div>
                 <div>
-                    <label className="block text-sm">Trigger Type</label>
-                    <select className="w-full p-2 bg-gray-800 rounded border border-gray-700" value={input.trigger} onChange={e => setInput({ ...input, trigger: e.target.value as EnhancementTrigger })}>
-                        <option value="new_procedure">New Procedure</option>
+                    <label className="block text-xs text-gray-400 font-semibold mb-1">Trigger Type</label>
+                    <select className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.trigger} onChange={e => setInput({ ...input, trigger: e.target.value as EnhancementTrigger })}>
                         <option value="extended_stay">Extended Stay</option>
+                        <option value="new_procedure">New Procedure</option>
                         <option value="icu_upgrade">ICU Upgrade</option>
                     </select>
                 </div>
             </div>
 
+            {/* Extended Stay Trigger Fields */}
             {input.trigger === 'extended_stay' && (
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-sm">Original Discharge Date</label><input type="date" className="w-full p-2 bg-gray-800 rounded border border-gray-700" onChange={e => setInput({ ...input, originalDischargeDate: e.target.value })} /></div>
-                    <div><label className="block text-sm">New Expected Discharge Date</label><input type="date" className="w-full p-2 bg-gray-800 rounded border border-gray-700" onChange={e => setInput({ ...input, newDischargeDate: e.target.value })} /></div>
+                <div className="space-y-4 border-t border-white/5 pt-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-400 font-semibold mb-1">Original Discharge Date</label>
+                            <input type="date" className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.originalDischargeDate} onChange={e => setInput({ ...input, originalDischargeDate: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 font-semibold mb-1">New Expected Discharge Date</label>
+                            <input type="date" className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.newDischargeDate} onChange={e => setInput({ ...input, newDischargeDate: e.target.value })} />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <label className="block text-xs text-gray-400 font-semibold mb-1">Pheno Intensity Score (1-10)</label>
+                            <select className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.currentSeverityScores?.phenoIntensity ?? 1} onChange={e => setInput({ ...input, currentSeverityScores: { phenoIntensity: Number(e.target.value), deteriorationVelocity: input.currentSeverityScores?.deteriorationVelocity ?? 1 } })}>
+                                {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 font-semibold mb-1">Deterioration Velocity Score (1-10)</label>
+                            <select className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.currentSeverityScores?.deteriorationVelocity ?? 1} onChange={e => setInput({ ...input, currentSeverityScores: { phenoIntensity: input.currentSeverityScores?.phenoIntensity ?? 1, deteriorationVelocity: Number(e.target.value) } })}>
+                                {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs text-gray-400 font-semibold mb-2">Discharge Delay Reasons (Select all that apply)</label>
+                        <div className="grid grid-cols-2 gap-2 text-sm bg-gray-950/30 p-3 rounded-xl border border-white/5">
+                            {DELAY_REASONS.map(reason => (
+                                <label key={reason} className="flex items-start space-x-2.5 cursor-pointer hover:text-white text-gray-300 py-1">
+                                    <input type="checkbox" className="mt-0.5 rounded border-white/10 bg-gray-900" checked={input.dischargeDelayReasons?.includes(reason) ?? false} onChange={e => handleDelayReasonChange(reason, e.target.checked)} />
+                                    <span>{reason}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             )}
 
+            {/* New Procedure Trigger Fields */}
             {input.trigger === 'new_procedure' && (
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-sm">Procedure Name</label><input className="w-full p-2 bg-gray-800 rounded border border-gray-700" onChange={e => setInput({ ...input, newProcedureName: e.target.value })} /></div>
-                    <div><label className="block text-sm">Procedure Code</label><input className="w-full p-2 bg-gray-800 rounded border border-gray-700" onChange={e => setInput({ ...input, newProcedureCode: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-4 text-xs">
+                    <div>
+                        <label className="block text-xs text-gray-400 font-semibold mb-1">New Procedure Name</label>
+                        <input className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.newProcedureName} onChange={e => setInput({ ...input, newProcedureName: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 font-semibold mb-1">New Procedure Code</label>
+                        <input className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.newProcedureCode} onChange={e => setInput({ ...input, newProcedureCode: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 font-semibold mb-1">New Procedure Date</label>
+                        <input type="date" className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.newProcedureDate} onChange={e => setInput({ ...input, newProcedureDate: e.target.value })} />
+                    </div>
+                    <div className="flex items-center mt-6">
+                        <label className="flex items-center space-x-2.5 cursor-pointer text-sm">
+                            <input type="checkbox" className="rounded border-white/10 bg-gray-900" checked={input.newProcedureForeseeable ?? false} onChange={e => setInput({ ...input, newProcedureForeseeable: e.target.checked })} />
+                            <span>Was new procedure foreseeable?</span>
+                        </label>
+                    </div>
+                    <div className="col-span-2">
+                        <label className="block text-xs text-gray-400 font-semibold mb-1">Clinical Findings Triggering Procedure</label>
+                        <textarea rows={2} className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.clinicalFindingTriggeringProcedure} onChange={e => setInput({ ...input, clinicalFindingTriggeringProcedure: e.target.value })} />
+                    </div>
                 </div>
             )}
 
+            {/* ICU Upgrade Trigger Fields */}
             {input.trigger === 'icu_upgrade' && (
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-sm">Deterioration Vitals</label><input className="w-full p-2 bg-gray-800 rounded border border-gray-700" onChange={e => setInput({ ...input, deteriorationVitals: e.target.value })} /></div>
-                    <div><label className="block text-sm">ICU Intervention Required</label><input className="w-full p-2 bg-gray-800 rounded border border-gray-700" onChange={e => setInput({ ...input, icuIntervention: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-4 text-xs">
+                    <div>
+                        <label className="block text-xs text-gray-400 font-semibold mb-1">Deterioration Date & Time</label>
+                        <input type="datetime-local" className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.deteriorationDateTime} onChange={e => setInput({ ...input, deteriorationDateTime: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 font-semibold mb-1">Deterioration Vitals (e.g., BP, SpO2, HR)</label>
+                        <input className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.deteriorationVitals} onChange={e => setInput({ ...input, deteriorationVitals: e.target.value })} />
+                    </div>
+                    <div className="col-span-2">
+                        <label className="block text-xs text-gray-400 font-semibold mb-1">ICU Intervention Required (e.g., Ventilation, Pressor support)</label>
+                        <textarea rows={2} className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm" value={input.icuIntervention} onChange={e => setInput({ ...input, icuIntervention: e.target.value })} />
+                    </div>
                 </div>
             )}
 
-            <div className="pt-2">
-                <label className="block text-sm text-red-400 font-bold">Additional Amount Requested (₹)</label>
-                <input type="number" className="w-1/2 p-2 bg-gray-800 rounded border border-gray-700" value={input.additionalAmountRequested} onChange={e => setInput({ ...input, additionalAmountRequested: Number(e.target.value) })} />
+            <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-4">
+                <div>
+                    <label className="block text-xs text-red-400 font-semibold mb-1">Additional Amount Requested (₹)</label>
+                    <input type="number" className="w-full p-2.5 bg-gray-800 rounded border border-white/10 text-sm font-semibold text-red-200" value={input.additionalAmountRequested || ''} onChange={e => setInput({ ...input, additionalAmountRequested: Number(e.target.value) })} />
+                </div>
             </div>
 
-            <button onClick={handleGenerate} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition shadow">Generate Document</button>
+            <div className="flex items-center space-x-3">
+                <button onClick={handleGenerate} disabled={reviewLoading} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white rounded-xl text-sm font-bold transition shadow-lg active:scale-95 flex items-center space-x-2">
+                    {reviewLoading ? (
+                        <>
+                            <span className="animate-spin inline-block w-4 h-4 border-2 border-t-transparent border-white rounded-full"></span>
+                            <span>Reviewing Enhancement...</span>
+                        </>
+                    ) : (
+                        <span>Generate & Audit Request</span>
+                    )}
+                </button>
+            </div>
+
+            {/* Reviewed Outputs Gaps & Queries Panel */}
+            {report && (
+                <div className="grid grid-cols-2 gap-4 mt-4 text-xs">
+                    <div className="p-4 bg-red-950/20 border border-red-500/10 rounded-2xl space-y-2">
+                        <h4 className="font-bold text-red-400 uppercase tracking-wider text-[10px]">Verification Gaps ({report.gaps.length})</h4>
+                        {report.gaps.length > 0 ? (
+                            <ul className="list-disc pl-4 space-y-1.5 text-gray-300">
+                                {report.gaps.map((g, idx) => <li key={idx}>{g}</li>)}
+                            </ul>
+                        ) : (
+                            <p className="text-emerald-400 font-medium">✓ No blocking gaps detected.</p>
+                        )}
+                    </div>
+
+                    <div className="p-4 bg-blue-950/20 border border-blue-500/10 rounded-2xl space-y-2">
+                        <h4 className="font-bold text-blue-400 uppercase tracking-wider text-[10px]">Anticipated TPA Queries ({report.anticipatedQueries.length})</h4>
+                        {report.anticipatedQueries.length > 0 ? (
+                            <div className="space-y-2.5 max-h-48 overflow-y-auto">
+                                {report.anticipatedQueries.map((q, idx) => (
+                                    <div key={idx} className="border-b border-white/5 pb-2 last:border-b-0 last:pb-0">
+                                        <p className="font-semibold text-gray-200">Q: {q.query}</p>
+                                        <p className="text-gray-400 mt-0.5">Reason: {q.reason}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-emerald-400 font-medium">✓ No queries expected from TPA medical reviewers.</p>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {doc && (
-                <div className="mt-4 p-4 bg-gray-950 rounded border border-gray-700">
-                    <pre className="whitespace-pre-wrap text-sm">{doc}</pre>
+                <div className="mt-4 p-4 bg-gray-950/60 rounded-2xl border border-white/10">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-3">
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Preview Generated Enhancement Document</h3>
+                    </div>
+                    <pre className="whitespace-pre-wrap text-xs text-gray-300 font-mono leading-relaxed">{doc}</pre>
                 </div>
             )}
         </div>
