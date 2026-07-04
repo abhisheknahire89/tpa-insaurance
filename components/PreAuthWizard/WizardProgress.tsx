@@ -45,40 +45,31 @@ const STEPS = [
 ] as const;
 
 export const WizardProgress: React.FC<WizardProgressProps> = ({ currentStep, onStepClick }) => (
-    <div className="flex items-center justify-between px-2 select-none">
-        {STEPS.map((step, idx) => {
+    <div className="flex bg-white/5 border border-white/5 rounded-xl p-1 select-none w-full">
+        {STEPS.map((step) => {
             const done = step.n < currentStep;
             const active = step.n === currentStep;
             return (
-                <React.Fragment key={step.n}>
-                    <button
-                        className={`flex flex-col items-center gap-2 group transition-all outline-none ${onStepClick && done ? 'cursor-pointer' : 'cursor-default'}`}
-                        onClick={() => onStepClick && done && onStepClick(step.n as any)}
-                        disabled={!done}
-                        type="button"
-                    >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300
-              ${done ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 group-hover:bg-emerald-500/25 group-hover:scale-105' :
-                                active ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20 scale-105' :
-                                    'bg-gray-900 border-white/10 text-gray-500'}`}>
-                            {done ? (
-                                <svg className="w-5 h-5 stroke-current" fill="none" strokeWidth="3" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                </svg>
-                            ) : (
-                                step.icon
-                            )}
-                        </div>
-                        <span className={`text-[11px] font-semibold text-center max-w-[85px] leading-tight transition-colors duration-300
-              ${active ? 'text-blue-400' : done ? 'text-emerald-400 group-hover:text-emerald-300' : 'text-gray-500'}`}>
-                            {step.label}
-                        </span>
-                    </button>
-                    {idx < STEPS.length - 1 && (
-                        <div className={`flex-1 h-[2px] mx-4 mb-6 rounded-full transition-colors duration-500
-              ${step.n < currentStep ? 'bg-emerald-500 shadow-sm shadow-emerald-500/35' : 'bg-white/5'}`} />
+                <button
+                    key={step.n}
+                    onClick={() => onStepClick && done && onStepClick(step.n as any)}
+                    disabled={!done}
+                    className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                        active 
+                            ? 'bg-blue-600 text-white shadow-sm' 
+                            : done 
+                            ? 'text-blue-400 hover:bg-white/5 hover:text-blue-300' 
+                            : 'text-gray-500'
+                    }`}
+                    type="button"
+                >
+                    {done ? (
+                        <span className="text-xs font-bold text-blue-400">✓</span>
+                    ) : (
+                        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white' : 'bg-gray-700'}`}></span>
                     )}
-                </React.Fragment>
+                    <span className="truncate">{step.label}</span>
+                </button>
             );
         })}
     </div>

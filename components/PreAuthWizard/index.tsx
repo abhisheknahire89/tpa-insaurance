@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
     PreAuthRecord, PatientRecord, InsurancePolicyDetails,
     ClinicalDetails, AdmissionDetails, CostEstimate, WizardState
@@ -9,13 +9,15 @@ import { ClinicalDetailsStep } from './ClinicalDetailsStep';
 import { AdmissionCostStep } from './AdmissionCostStep';
 import { DocumentsGenerateStep } from './DocumentsGenerateStep';
 import { VoiceDictationMode } from './VoiceDictationMode';
+import { ClaimReadinessRail } from './ClaimReadinessRail';
 import { VoiceExtractedData } from '../../services/voiceDictationService';
 import { savePreAuth, savePatient, generatePreAuthId, generatePatientId } from '../../services/storageService';
 import { calculateTotals } from '../../utils/costCalculator';
 import { calculateCost, findConditionByICD } from '../../services/costEstimationService';
+import { classifyCaseComplexity } from '../../utils/complexityClassifier';
 import { todayISO, nowTimeString } from '../../utils/formatters';
-import { reviewEvidence } from '../../engine/evidenceReview';
-import { validateCode } from '../../services/icdService';
+import { reviewEvidence, EvidenceReviewReport } from '../../engine/evidenceReview';
+import { validateCode, mapToWhoCode, getDescription } from '../../services/icdService';
 
 
 interface PreAuthWizardProps {
@@ -30,8 +32,7 @@ interface PreAuthWizardProps {
 
 /**
  * Ensures no ICD-10 code that fails WHO table validation can live in the record.
- * Any unrecognised code is reset to the 'Pending ICD-10' placeholder so the
- * user is forced to confirm a valid code via the ICD picker before generating.
+ * Any unrecognised code is mapped to its WHO parent or reset to the 'Pending ICD-10' placeholder.
  */
 const sanitizeDiagnoses = (record: Partial<PreAuthRecord>): Partial<PreAuthRecord> => {
     if (!record.clinical?.diagnoses) return record;
@@ -39,6 +40,15 @@ const sanitizeDiagnoses = (record: Partial<PreAuthRecord>): Partial<PreAuthRecor
         const code = dx.icd10Code ?? '';
         const isPlaceholder = !code || code === 'Pending ICD-10' || code === 'Selection required';
         if (!isPlaceholder && !validateCode(code)) {
+            const mapped = mapToWhoCode(code);
+            if (mapped) {
+                console.log(`[sanitizeDiagnoses] Mapping non-WHO code "${code}" -> valid WHO code "${mapped}"`);
+                return {
+                    ...dx,
+                    icd10Code: mapped,
+                    icd10Description: getDescription(mapped)
+                };
+            }
             console.warn(`[sanitizeDiagnoses] Rejecting unrecognised code "${code}" — resetting to Pending ICD-10`);
             return { ...dx, icd10Code: 'Pending ICD-10', icd10Description: 'Selection required', isSelected: dx.isSelected };
         }
@@ -106,6 +116,10 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({
 }) => {
     const [step, setStep] = useState<1 | 2 | 3 | 4>(startAtStep as any);
     const [showVoiceMode, setShowVoiceMode] = useState(false);
+    // TPA report — hoisted here so the rail shows on all steps
+    const [tpaReport, setTpaReport] = useState<EvidenceReviewReport | null>(null);
+    const [tpaLoading, setTpaLoading] = useState(false);
+    const tpaFetchKey = useRef<string>('');
     const [record, setRecord] = useState<Partial<PreAuthRecord>>(() => {
         if (existingRecord) return sanitizeDiagnoses(existingRecord);
         const empty = buildEmptyRecord();
@@ -125,10 +139,32 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({
 
     const [saving, setSaving] = useState(false);
 
+    // ── Fetch TPA review whenever the diagnosis or clinical data changes ─────
+    useEffect(() => {
+        const dx = record.clinical?.diagnoses?.[record.clinical.selectedDiagnosisIndex ?? 0]?.diagnosis ?? '';
+        const key = `${dx}|${record.clinical?.chiefComplaints ?? ''}|${record.clinical?.relevantClinicalFindings ?? ''}`;
+        if (key === tpaFetchKey.current) return; // no meaningful change
+        tpaFetchKey.current = key;
+        if (!dx) { setTpaReport(null); return; }
+        let active = true;
+        setTpaLoading(true);
+        reviewEvidence(record).then(report => {
+            if (active) { setTpaReport(report); setTpaLoading(false); }
+        }).catch(() => { if (active) setTpaLoading(false); });
+        return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [record.clinical?.diagnoses, record.clinical?.chiefComplaints, record.clinical?.relevantClinicalFindings]);
+
     const updateRecord = useCallback(async (partial: Partial<PreAuthRecord>) => {
-        const updated = { ...record, ...partial, updatedAt: new Date().toISOString() };
-        setRecord(updated);
-        try { await savePreAuth(updated as PreAuthRecord); } catch (e) { /* silent */ }
+        const merged = { ...record, ...partial, updatedAt: new Date().toISOString() };
+        const updated = sanitizeDiagnoses(merged);
+        
+        // Calculate Case Complexity on the fly
+        const { complexity, reason } = classifyCaseComplexity(updated);
+        const finalUpdated = { ...updated, complexity, complexityReason: reason };
+
+        setRecord(finalUpdated);
+        try { await savePreAuth(finalUpdated as PreAuthRecord); } catch (e) { /* silent */ }
     }, [record]);
 
     const handleNext = async () => {
@@ -286,17 +322,26 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-gray-950 border border-white/10 rounded-2xl w-full max-w-3xl my-8 mx-4 shadow-2xl overflow-hidden">
+            <div className="bg-[#0D121F]/90 border border-white/5 rounded-2xl w-full max-w-5xl my-8 mx-4 shadow-2xl overflow-hidden backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" style={{ display: 'flex', flexDirection: 'column' }}>
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-gray-900/20">
+                <div className="flex items-center justify-between px-6 py-3.5 border-b border-white/5 bg-white/[0.02]">
                     <div className="flex items-center gap-3">
-                        <span className="font-semibold text-sm text-white">New Pre-Authorization</span>
-                        <span className="font-mono text-xs px-2 py-0.5 bg-gray-900 border border-white/5 text-gray-400 rounded-md select-all">{record.id}</span>
+                        <span className="font-semibold text-xs text-white uppercase tracking-wider">New Pre-Authorization</span>
+                        <span className="font-mono text-[10px] px-2 py-0.5 bg-black/30 border border-white/5 text-gray-400 rounded-md select-all">{record.id}</span>
+                        {record.complexity && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                record.complexity === 'Low' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                record.complexity === 'Medium' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                                'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                            }`} title={record.complexityReason}>
+                                {record.complexity} Complexity {record.complexity === 'Low' && '⚡ Fast-Track'}
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-4">
                         {saving && (
-                            <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
-                                <svg className="w-3.5 h-3.5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
+                            <span className="text-[10px] text-gray-500 flex items-center gap-1.5 font-medium">
+                                <svg className="w-3 h-3 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                 </svg>
@@ -304,7 +349,7 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({
                             </span>
                         )}
                         <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors" type="button">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
@@ -313,79 +358,108 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({
 
                 {/* Voice Dictation Banner — shown on step 1 */}
                 {step === 1 && (
-                    <div className="mx-6 mt-5 bg-gradient-to-r from-red-900/10 via-rose-900/5 to-transparent border border-red-500/10 rounded-2xl p-4 flex items-center justify-between shadow-sm animate-pulse-subtle">
+                    <div className="mx-6 mt-5 bg-white/[0.02] border border-white/5 rounded-xl p-4 flex items-center justify-between shadow-sm">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
                                 </svg>
                             </div>
                             <div>
                                 <div className="text-xs font-bold text-white flex items-center gap-1.5">
                                     Voice Dictation
-                                    <span className="text-[9px] uppercase tracking-wider bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-extrabold font-sans">Fastest</span>
+                                    <span className="text-[9px] uppercase tracking-wider bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded font-extrabold font-sans border border-blue-500/20">AI-Assistant</span>
                                 </div>
-                                <div className="text-[11px] text-gray-400 mt-0.5">Speak patient & clinical notes → AI auto-fills everything instantly</div>
+                                <div className="text-[11px] text-gray-400 mt-0.5">Speak patient notes to automatically populate clinical fields.</div>
                             </div>
                         </div>
                         <button
                             onClick={() => setShowVoiceMode(true)}
-                            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white transition-all shadow-md shadow-red-600/15 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-sm active:scale-[0.98]"
                             type="button">
                             Start Dictating
                         </button>
                     </div>
                 )}
 
-                {/* Progress Bar */}
-                <div className="px-6 pt-5 pb-3">
-                    <WizardProgress currentStep={step} onStepClick={s => s < step && setStep(s)} />
-                </div>
+                {/* ── Two-column body: main content + persistent rail ── */}
+                <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-                {/* Step Content */}
-                <div className="px-6 pb-6 min-h-[500px] overflow-y-auto" style={{ maxHeight: '75vh' }}>
-                    {step === 1 && (
-                        <PatientInsuranceStep
-                            patient={record.patient ?? {}}
-                            insurance={record.insurance ?? {}}
-                            onPatientChange={p => updateRecord({ patient: p })}
-                            onInsuranceChange={ins => updateRecord({ insurance: ins })}
-                            onNext={handleNext}
-                        />
-                    )}
-                    {step === 2 && (
-                        <ClinicalDetailsStep
-                            clinical={record.clinical ?? {}}
-                            caseId={record.id}
-                            doctorName={record.declarations?.doctor?.doctorName || 'Treating Doctor'}
-                            onClinicalChange={c => updateRecord({ clinical: c })}
-                            onNext={handleNext}
-                            onBack={handleBack}
-                        />
-                    )}
-                    {step === 3 && (
-                        <AdmissionCostStep
-                            admission={record.admission ?? {}}
-                            cost={record.costEstimate ?? {}}
-                            clinical={record.clinical ?? {}}
-                            sumInsured={record.insurance?.sumInsured ?? 0}
-                            onAdmissionChange={a => updateRecord({ admission: a })}
-                            onCostChange={c => updateRecord({ costEstimate: c })}
-                            onNext={handleNext}
-                            onBack={handleBack}
-                        />
-                    )}
-                    {step === 4 && (
-                        <DocumentsGenerateStep
+                    {/* ── Main content column ─────────────────────────── */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                        {/* Progress Bar */}
+                        <div className="px-6 pt-5 pb-3">
+                            <WizardProgress currentStep={step} onStepClick={s => s < step && setStep(s)} />
+                        </div>
+
+                        {/* Step Content */}
+                        <div className="px-6 pb-6 overflow-y-auto" style={{ flex: 1, minHeight: 500 }}>
+                            {step === 1 && (
+                                <PatientInsuranceStep
+                                    patient={record.patient ?? {}}
+                                    insurance={record.insurance ?? {}}
+                                    onPatientChange={p => updateRecord({ patient: p })}
+                                    onInsuranceChange={ins => updateRecord({ insurance: ins })}
+                                    onNext={handleNext}
+                                />
+                            )}
+                            {step === 2 && (
+                                <ClinicalDetailsStep
+                                    clinical={record.clinical ?? {}}
+                                    caseId={record.id}
+                                    doctorName={record.declarations?.doctor?.doctorName || 'Treating Doctor'}
+                                    onClinicalChange={c => updateRecord({ clinical: c })}
+                                    onNext={handleNext}
+                                    onBack={handleBack}
+                                    complexity={record.complexity}
+                                />
+                            )}
+                            {step === 3 && (
+                                <AdmissionCostStep
+                                    admission={record.admission ?? {}}
+                                    cost={record.costEstimate ?? {}}
+                                    clinical={record.clinical ?? {}}
+                                    sumInsured={record.insurance?.sumInsured ?? 0}
+                                    onAdmissionChange={a => updateRecord({ admission: a })}
+                                    onCostChange={c => updateRecord({ costEstimate: c })}
+                                    onNext={handleNext}
+                                    onBack={handleBack}
+                                    complexity={record.complexity}
+                                />
+                            )}
+                            {step === 4 && (
+                                <DocumentsGenerateStep
+                                    record={record}
+                                    onRecordChange={r => updateRecord(r)}
+                                    onBack={handleBack}
+                                    onGenerate={handleGenerate}
+                                    defaultTab={defaultTab}
+                                    isDemo={isDemo}
+                                    onResetDemo={onResetDemo}
+                                    onJumpToStep={s => setStep(s)}
+                                    externalTpaReport={tpaReport}
+                                />
+                            )}
+                        </div>
+
+                        {/* Mobile rail accordion — appears below step content */}
+                        <ClaimReadinessRail
                             record={record}
-                            onRecordChange={r => updateRecord(r)}
-                            onBack={handleBack}
-                            onGenerate={handleGenerate}
-                            defaultTab={defaultTab}
-                            isDemo={isDemo}
-                            onResetDemo={onResetDemo}
+                            tpaReport={tpaReport}
+                            tpaLoading={tpaLoading}
+                            onJumpToStep={s => setStep(s)}
+                            mode="mobile"
                         />
-                    )}
+                    </div>
+
+                    {/* ── Persistent right rail (desktop ≥1024px) ────── */}
+                    <ClaimReadinessRail
+                        record={record}
+                        tpaReport={tpaReport}
+                        tpaLoading={tpaLoading}
+                        onJumpToStep={s => setStep(s)}
+                        mode="desktop"
+                    />
                 </div>
             </div>
         </div>

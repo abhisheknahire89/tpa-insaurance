@@ -1,15 +1,15 @@
 # Regression Test Battery Report (100 Cases)
 
-**Date:** 6/30/2026, 6:16:20 PM
-**Cache Status:** 98 hits, 2 misses (0 live successful, 2 failed)
+**Date:** 7/3/2026, 10:21:24 PM
+**Cache Status:** 100 hits, 0 misses (0 live successful, 0 failed)
 
 ## Summary Statistics
 
 | Result Type | Count | Percentage |
 |---|---|---|
-| **PASS** | 57 | 57% |
+| **PASS** | 60 | 60% |
 | **MISS** | 35 | 35% |
-| **OVER-FLAG** | 8 | 8% |
+| **OVER-FLAG** | 5 | 5% |
 | **SAFETY-LEAK** | 0 | 0% |
 | **ERROR-CRASH** | 0 | 0% |
 | **Total** | 100 | 100% |
@@ -32,7 +32,7 @@
 | 12 | A | Stroke missing CT/MRI scan (Seed 12) | Must flag: [CT, MRI, neuroimaging]; Should Generate | Missed expected flag matching "neuroimaging" | ❌ **MISS** | Stroke missing CT/MRI scan (Seed 12) |
 | 13 | A | Dengue missing platelet count (Seed 13) | Must flag: [platelet]; Should Generate | Success: Document Generated | ✅ **PASS** | Dengue missing platelet count (Seed 13) |
 | 14 | A | Cataract verification prompt (Seed 14) | Must flag: [limit]; Should Generate | Missed expected flag matching "limit" | ❌ **MISS** | Cataract verification prompt (Seed 14) |
-| 15 | A | CABG missing angiography report (Seed 15) | Must flag: [angiography, necessity]; Should Generate | Missed expected flag matching "necessity" | ❌ **MISS** | CABG missing angiography report (Seed 15) |
+| 15 | A | CABG missing angiography report (Seed 15) | Must flag: [angiography, necessity]; Should Generate | Missed expected flag matching "angiography", Missed expected flag matching "necessity" | ❌ **MISS** | CABG missing angiography report (Seed 15) |
 | 16 | A | Tonsillectomy missing recurrence frequency and prior meds | Must flag: [conservative-management]; Should Generate | Missed expected flag matching "conservative-management" | ❌ **MISS** | Tonsillectomy missing recurrence frequency and prior meds |
 | 17 | A | TURP missing post-void residual or IPSS score | Must flag: [residual, IPSS]; Should Generate | Missed expected flag matching "residual", Missed expected flag matching "IPSS" | ❌ **MISS** | TURP missing post-void residual or IPSS score |
 | 18 | A | GERD endoscopy missing inpatient justification | Must flag: [necessity, OPD]; Should Generate | Missed expected flag matching "necessity", Missed expected flag matching "OPD" | ❌ **MISS** | GERD endoscopy missing inpatient justification |
@@ -42,7 +42,7 @@
 | 22 | A | ACL reconstruction missing MRI knee report | Must flag: [MRI]; Should Generate | Success: Document Generated | ✅ **PASS** | ACL reconstruction missing MRI knee report |
 | 23 | A | Pacemaker implantation missing diagnostic ECG | Must flag: [ECG, Holter]; Should Generate | Success: Document Generated | ✅ **PASS** | Pacemaker implantation missing diagnostic ECG |
 | 24 | A | COPD exacerbation missing arterial blood gas or SpO2 | Must flag: [SpO2, ABG]; Should Generate | Success: Document Generated | ✅ **PASS** | COPD exacerbation missing arterial blood gas or SpO2 |
-| 25 | A | Acute pancreatitis missing enzyme assays / CT | Must flag: [amylase, lipase, imaging]; Should Generate | Missed expected flag matching "amylase", Missed expected flag matching "lipase" | ❌ **MISS** | Acute pancreatitis missing enzyme assays / CT |
+| 25 | A | Acute pancreatitis missing enzyme assays / CT | Must flag: [amylase, lipase, imaging]; Should Generate | Missed expected flag matching "amylase", Missed expected flag matching "lipase", Missed expected flag matching "imaging" | ❌ **MISS** | Acute pancreatitis missing enzyme assays / CT |
 | 26 | A | Ureteroscopy missing stone size and CT/USG details | Must flag: [imaging, stone, size]; Should Generate | Success: Document Generated | ✅ **PASS** | Ureteroscopy missing stone size and CT/USG details |
 | 27 | A | Inguinal hernia repair missing inpatient medical necessity | Must flag: [necessity, OPD]; Should Generate | Missed expected flag matching "necessity", Missed expected flag matching "OPD" | ❌ **MISS** | Inguinal hernia repair missing inpatient medical necessity |
 | 28 | A | Meningitis missing CSF analysis details | Must flag: [CSF, puncture]; Should Generate | Success: Document Generated | ✅ **PASS** | Meningitis missing CSF analysis details |
@@ -58,23 +58,23 @@
 | 38 | A | Liver cirrhosis with ascites missing USG / fluid analysis | Must flag: [ultrasound, USG, fluid, tap]; Should Generate | Missed expected flag matching "ultrasound", Missed expected flag matching "USG", Missed expected flag matching "fluid", Missed expected flag matching "tap" | ❌ **MISS** | Liver cirrhosis with ascites missing USG / fluid analysis |
 | 39 | A | AKI missing creatinine trend or urine output | Must flag: [creatinine, urine, serial]; Should Generate | Missed expected flag matching "creatinine", Missed expected flag matching "serial" | ❌ **MISS** | AKI missing creatinine trend or urine output |
 | 40 | A | Hemorrhoids missing grade / conservative treatment | Must flag: [grade, conservative-management]; Should Generate | Missed expected flag matching "grade", Missed expected flag matching "conservative-management" | ❌ **MISS** | Hemorrhoids missing grade / conservative treatment |
-| 41 | A | Myomectomy missing ultrasound fibroid dimensions | Must flag: [fibroid, size, ultrasound, USG]; Should Generate | Missed expected flag matching "USG" | ❌ **MISS** | Myomectomy missing ultrasound fibroid dimensions |
+| 41 | A | Myomectomy missing ultrasound fibroid dimensions | Must flag: [fibroid, size, ultrasound, USG]; Should Generate | Missed expected flag matching "ultrasound", Missed expected flag matching "USG" | ❌ **MISS** | Myomectomy missing ultrasound fibroid dimensions |
 | 42 | A | Radiotherapy missing histopathology / plan sheet | Must flag: [histopathology, biopsy, treatment, sheet]; Should Generate | Missed expected flag matching "histopathology", Missed expected flag matching "biopsy" | ❌ **MISS** | Radiotherapy missing histopathology / plan sheet |
 | 43 | A | Asthma exacerbation missing SpO2 or peak flow | Must flag: [SpO2, peak, flow, PEFR]; Should Generate | Missed expected flag matching "SpO2", Missed expected flag matching "peak", Missed expected flag matching "flow", Missed expected flag matching "PEFR" | ❌ **MISS** | Asthma exacerbation missing SpO2 or peak flow |
 | 44 | A | Typhoid missing Widal or culture reports | Must flag: [Widal, culture, blood]; Should Generate | Missed expected flag matching "Widal", Missed expected flag matching "culture", Missed expected flag matching "blood" | ❌ **MISS** | Typhoid missing Widal or culture reports |
 | 45 | A | Carpal tunnel release missing EMG/NCS | Must flag: [nerve, EMG, NCS, conduction]; Should Generate | Missed expected flag matching "nerve", Missed expected flag matching "EMG", Missed expected flag matching "NCS", Missed expected flag matching "conduction" | ❌ **MISS** | Carpal tunnel release missing EMG/NCS |
 | 46 | B | Sufficient appendicitis (Seed 16) | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient appendicitis (Seed 16) |
 | 47 | B | Sufficient pneumonia (Seed 17) | Should Generate | Flagged clinical queries on sufficient case: Required diagnostic anchor "details of IV antibiotics administered" is not documented in the clinical narrative. | ⚠️ **OVER-FLAG** | Sufficient pneumonia (Seed 17) |
-| 48 | B | Sufficient MI (Seed 18) | Should Generate | Flagged clinical queries on sufficient case: Required diagnostic anchor "Patient's age (60M)" is not documented in the clinical narrative.; Required diagnostic anchor "CT brain" is not documented in the clinical narrative.; Required diagnostic anchor "MRI brain" is not documented in the clinical narrative.; Required diagnostic anchor "neuroimaging" is not documented in the clinical narrative.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation. | ⚠️ **OVER-FLAG** | Sufficient MI (Seed 18) |
-| 49 | B | Sufficient dengue (Seed 19) | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient dengue (Seed 19) |
+| 48 | B | Sufficient MI (Seed 18) | Should Generate | Flagged clinical queries on sufficient case: Required diagnostic anchor "Patient's age (60M)" is not documented in the clinical narrative.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation. | ⚠️ **OVER-FLAG** | Sufficient MI (Seed 18) |
+| 49 | B | Sufficient dengue (Seed 19) | Should Generate | Flagged clinical queries on sufficient case: Documented vitals are stable and the reason for hospitalization does not demonstrate acute medical necessity. The most common TPA rejection reason for this condition is that it is OPD-manageable. | ⚠️ **OVER-FLAG** | Sufficient dengue (Seed 19) |
 | 50 | B | Sufficient bilateral TKR (Seed 20) | Should Generate | Flagged clinical queries on sufficient case: Bilateral/simultaneous procedure — provide clinical justification (vs staged); insurers commonly query this.; Diabetes/hypertension/cardiac/renal present with no past-treatment history/records — TPA will query to establish PED status. | ⚠️ **OVER-FLAG** | Sufficient bilateral TKR (Seed 20) |
 | 51 | B | Sufficient TURP | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient TURP |
-| 52 | B | Sufficient cholecystectomy | Should Generate | Flagged clinical queries on sufficient case: to determine if the patient's condition is stable enough for outpatient management. | ⚠️ **OVER-FLAG** | Sufficient cholecystectomy |
-| 53 | B | Sufficient unilateral TKR | Should Generate | Flagged clinical queries on sufficient case: to determine if the patient is a suitable candidate for outpatient management.; to confirm the presence of objective signs consistent with osteoarthritis and to assess the severity of joint damage.; to determine if the patient is a suitable candidate for outpatient management.; to confirm the presence of objective signs consistent with osteoarthritis and to assess the severity of joint damage. | ⚠️ **OVER-FLAG** | Sufficient unilateral TKR |
+| 52 | B | Sufficient cholecystectomy | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient cholecystectomy |
+| 53 | B | Sufficient unilateral TKR | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient unilateral TKR |
 | 54 | B | Sufficient asthma exacerbation | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient asthma exacerbation |
 | 55 | B | Sufficient PTCA stenting | Should Generate | Flagged clinical queries on sufficient case: Required diagnostic anchor "ECG" is not documented in the clinical narrative. | ⚠️ **OVER-FLAG** | Sufficient PTCA stenting |
 | 56 | B | Sufficient vaginal hysterectomy | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient vaginal hysterectomy |
-| 57 | B | Sufficient appendectomy | Should Generate | Flagged clinical queries on sufficient case: to assess if the patient's condition is stable enough for outpatient management | ⚠️ **OVER-FLAG** | Sufficient appendectomy |
+| 57 | B | Sufficient appendectomy | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient appendectomy |
 | 58 | B | Sufficient CKD dialysis | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient CKD dialysis |
 | 59 | B | Sufficient chemotherapy cycle | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient chemotherapy cycle |
 | 60 | B | Sufficient stroke admission | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient stroke admission |
@@ -82,7 +82,7 @@
 | 62 | B | Sufficient cataract phaco | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient cataract phaco |
 | 63 | B | Sufficient septoplasty | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient septoplasty |
 | 64 | B | Sufficient myomectomy | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient myomectomy |
-| 65 | B | Sufficient fistulectomy | Should Generate | Flagged clinical queries on sufficient case: Required diagnostic anchor "fistulectomy procedure details" is not documented in the clinical narrative. | ⚠️ **OVER-FLAG** | Sufficient fistulectomy |
+| 65 | B | Sufficient fistulectomy | Should Generate | Success: Document Generated | ✅ **PASS** | Sufficient fistulectomy |
 | 66 | C | Hinglish/Layman term: heart attack (Seed 21) | Should Block; ICD category: I21 | Blocked: A confirmed, valid ICD-10 code is required. | ✅ **PASS** | Hinglish/Layman term: heart attack (Seed 21) |
 | 67 | C | Layman term: sugar (Seed 22) | Should Block; ICD category: E11 | Blocked: A confirmed, valid ICD-10 code is required. | ✅ **PASS** | Layman term: sugar (Seed 22) |
 | 68 | C | Layman term: high BP (Seed 23) | Should Block; ICD category: I10 | Blocked: A confirmed, valid ICD-10 code is required. | ✅ **PASS** | Layman term: high BP (Seed 23) |
@@ -138,14 +138,14 @@
 - **Case 10**: Missed expected flag matching "obstetric"
 - **Case 12**: Missed expected flag matching "neuroimaging"
 - **Case 14**: Missed expected flag matching "limit"
-- **Case 15**: Missed expected flag matching "necessity"
+- **Case 15**: Missed expected flag matching "angiography", Missed expected flag matching "necessity"
 - **Case 16**: Missed expected flag matching "conservative-management"
 - **Case 17**: Missed expected flag matching "residual", Missed expected flag matching "IPSS"
 - **Case 18**: Missed expected flag matching "necessity", Missed expected flag matching "OPD"
 - **Case 19**: Missed expected flag matching "USG"
 - **Case 20**: Missed expected flag matching "biopsy"
 - **Case 21**: Missed expected flag matching "CT", Missed expected flag matching "MRI", Missed expected flag matching "investigations"
-- **Case 25**: Missed expected flag matching "amylase", Missed expected flag matching "lipase"
+- **Case 25**: Missed expected flag matching "amylase", Missed expected flag matching "lipase", Missed expected flag matching "imaging"
 - **Case 27**: Missed expected flag matching "necessity", Missed expected flag matching "OPD"
 - **Case 29**: Missed expected flag matching "culture", Missed expected flag matching "investigation"
 - **Case 30**: Missed expected flag matching "tap", Missed expected flag matching "analysis"
@@ -159,18 +159,15 @@
 - **Case 38**: Missed expected flag matching "ultrasound", Missed expected flag matching "USG", Missed expected flag matching "fluid", Missed expected flag matching "tap"
 - **Case 39**: Missed expected flag matching "creatinine", Missed expected flag matching "serial"
 - **Case 40**: Missed expected flag matching "grade", Missed expected flag matching "conservative-management"
-- **Case 41**: Missed expected flag matching "USG"
+- **Case 41**: Missed expected flag matching "ultrasound", Missed expected flag matching "USG"
 - **Case 42**: Missed expected flag matching "histopathology", Missed expected flag matching "biopsy"
 - **Case 43**: Missed expected flag matching "SpO2", Missed expected flag matching "peak", Missed expected flag matching "flow", Missed expected flag matching "PEFR"
 - **Case 44**: Missed expected flag matching "Widal", Missed expected flag matching "culture", Missed expected flag matching "blood"
 - **Case 45**: Missed expected flag matching "nerve", Missed expected flag matching "EMG", Missed expected flag matching "NCS", Missed expected flag matching "conduction"
 
-### 4. OVER-FLAGS (8)
+### 4. OVER-FLAGS (5)
 - **Case 47**: Flagged clinical queries on sufficient case: Required diagnostic anchor "details of IV antibiotics administered" is not documented in the clinical narrative.
-- **Case 48**: Flagged clinical queries on sufficient case: Required diagnostic anchor "Patient's age (60M)" is not documented in the clinical narrative.; Required diagnostic anchor "CT brain" is not documented in the clinical narrative.; Required diagnostic anchor "MRI brain" is not documented in the clinical narrative.; Required diagnostic anchor "neuroimaging" is not documented in the clinical narrative.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation.
+- **Case 48**: Flagged clinical queries on sufficient case: Required diagnostic anchor "Patient's age (60M)" is not documented in the clinical narrative.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation.; To assess whether the patient has a history of cardiac conditions that could contribute to the current presentation.
+- **Case 49**: Flagged clinical queries on sufficient case: Documented vitals are stable and the reason for hospitalization does not demonstrate acute medical necessity. The most common TPA rejection reason for this condition is that it is OPD-manageable.
 - **Case 50**: Flagged clinical queries on sufficient case: Bilateral/simultaneous procedure — provide clinical justification (vs staged); insurers commonly query this.; Diabetes/hypertension/cardiac/renal present with no past-treatment history/records — TPA will query to establish PED status.
-- **Case 52**: Flagged clinical queries on sufficient case: to determine if the patient's condition is stable enough for outpatient management.
-- **Case 53**: Flagged clinical queries on sufficient case: to determine if the patient is a suitable candidate for outpatient management.; to confirm the presence of objective signs consistent with osteoarthritis and to assess the severity of joint damage.; to determine if the patient is a suitable candidate for outpatient management.; to confirm the presence of objective signs consistent with osteoarthritis and to assess the severity of joint damage.
 - **Case 55**: Flagged clinical queries on sufficient case: Required diagnostic anchor "ECG" is not documented in the clinical narrative.
-- **Case 57**: Flagged clinical queries on sufficient case: to assess if the patient's condition is stable enough for outpatient management
-- **Case 65**: Flagged clinical queries on sufficient case: Required diagnostic anchor "fistulectomy procedure details" is not documented in the clinical narrative.

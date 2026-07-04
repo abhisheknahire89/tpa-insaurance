@@ -1,4 +1,5 @@
 import { PreAuthRecord, PatientRecord } from '../components/PreAuthWizard/types';
+import { mapToWhoCode, validateCode, getDescription } from './icdService';
 
 const DB_NAME = 'AivanaInsuranceDB';
 const DB_VERSION = 1;
@@ -39,6 +40,34 @@ const tx = async <T>(storeName: string, mode: IDBTransactionMode, fn: (store: ID
 // ---- PreAuth Operations ----
 
 export const savePreAuth = async (record: PreAuthRecord): Promise<void> => {
+    // Enforce: NO non-WHO code is stored
+    if (record.clinical?.diagnoses) {
+        record.clinical.diagnoses = record.clinical.diagnoses.map(dx => {
+            const code = dx.icd10Code;
+            if (code && !code.toLowerCase().includes('pending') && !code.toLowerCase().includes('selection')) {
+                if (validateCode(code)) {
+                    return dx;
+                }
+                const mapped = mapToWhoCode(code);
+                if (mapped) {
+                    console.log(`[StorageSanitizer] Mapping non-WHO code "${code}" -> valid WHO code "${mapped}"`);
+                    return {
+                        ...dx,
+                        icd10Code: mapped,
+                        icd10Description: getDescription(mapped)
+                    };
+                }
+                console.warn(`[StorageSanitizer] Invalid non-WHO code "${code}" could not be mapped. Resetting to Pending.`);
+                return {
+                    ...dx,
+                    icd10Code: 'Pending ICD-10',
+                    icd10Description: 'Selection required'
+                };
+            }
+            return dx;
+        });
+    }
+
     const database = await openDB();
     return new Promise((resolve, reject) => {
         const transaction = database.transaction(PREAUTH_STORE, 'readwrite');

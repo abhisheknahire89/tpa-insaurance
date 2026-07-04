@@ -1,7 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Initialize Gemini API
-const genAI = new GoogleGenerativeAI((import.meta as any).env?.VITE_GEMINI_API_KEY || '');
+import { getGoogleGenerativeAIClient, rotateApiKey, getActiveApiKey } from './apiKeys';
 
 export interface ExtractedPatientData {
     document_type: string;
@@ -83,56 +80,69 @@ function computeExtractedMissingFields(data: any): { extracted: string[], missin
 }
 
 export const extractFromDocument = async (file: File): Promise<ExtractedPatientData> => {
-    try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    let attempts = 3;
+    let lastError: any = null;
 
-        // Convert file to base64
-        const fileToBase64 = (f: File): Promise<string> => {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(f);
-                reader.onload = () => {
-                    const base64String = reader.result as string;
-                    // Remove data url prefix
-                    resolve(base64String.split(',')[1]);
-                };
-                reader.onerror = error => reject(error);
-            });
-        };
+    // Convert file to base64
+    const fileToBase64 = (f: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(f);
+            reader.onload = () => {
+                const base64String = reader.result as string;
+                // Remove data url prefix
+                resolve(base64String.split(',')[1]);
+            };
+            reader.onerror = error => reject(error);
+        });
+    };
 
-        const base64Data = await fileToBase64(file);
+    const base64Data = await fileToBase64(file);
 
-        const imageParts = [
-            {
-                inlineData: {
-                    data: base64Data,
-                    mimeType: file.type
-                }
+    const imageParts = [
+        {
+            inlineData: {
+                data: base64Data,
+                mimeType: file.type
             }
-        ];
-
-        const result = await model.generateContent([EXTRACTION_PROMPT, ...imageParts]);
-        const responseText = result.response.text().trim();
-
-        // Ensure stripping markdown json blocks which GEMINI sometimes outputs anyway
-        let jsonStr = responseText;
-        if (jsonStr.startsWith('\`\`\`json')) {
-            jsonStr = jsonStr.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
-        } else if (jsonStr.startsWith('\`\`\`')) {
-            jsonStr = jsonStr.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
         }
+    ];
 
-        const data = JSON.parse(jsonStr);
-        const { extracted, missing } = computeExtractedMissingFields(data);
+    while (attempts > 0) {
+        try {
+            const client = getGoogleGenerativeAIClient();
+            const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        return {
-            ...data,
-            extracted_fields: extracted,
-            missing_fields: missing
-        };
-    } catch (error) {
-        console.error("Extraction error:", error);
-        // Fallback or bubble up error
-        throw new Error("Failed to process document. Please ensure it's a clear image or PDF.");
+            const result = await model.generateContent([EXTRACTION_PROMPT, ...imageParts]);
+            const responseText = result.response.text().trim();
+
+            // Ensure stripping markdown json blocks which GEMINI sometimes outputs anyway
+            let jsonStr = responseText;
+            if (jsonStr.startsWith('```json')) {
+                jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
+            } else if (jsonStr.startsWith('```')) {
+                jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '').trim();
+            }
+
+            const data = JSON.parse(jsonStr);
+            const { extracted, missing } = computeExtractedMissingFields(data);
+
+            return {
+                ...data,
+                extracted_fields: extracted,
+                missing_fields: missing
+            };
+        } catch (error) {
+            lastError = error;
+            attempts--;
+            if (attempts > 0 && rotateApiKey()) {
+                console.warn("[documentExtractionService] Retrying document extraction with fallback API key...");
+                continue;
+            }
+            break;
+        }
     }
+
+    console.error("Extraction error:", lastError);
+    throw new Error("Failed to process document. Please ensure it's a clear image or PDF.");
 };

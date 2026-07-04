@@ -3,6 +3,7 @@ import { PreAuthRecord, PreAuthStatus } from '../PreAuthWizard/types';
 import { getAllPreAuths, deletePreAuth } from '../../services/storageService';
 import { StatusBadge } from './StatusBadge';
 import { formatDateTime } from '../../utils/formatters';
+import { computeReadiness, scoreColorClass } from '../../utils/readinessScore';
 
 interface PreAuthDashboardProps {
     onNewPreAuth: () => void;
@@ -209,7 +210,7 @@ export const PreAuthDashboard: React.FC<PreAuthDashboardProps> = ({ onNewPreAuth
                             <table className="w-full">
                                 <thead>
                                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                        {['Ref ID', 'Patient', 'Diagnosis', 'Insurer / TPA', 'Amount', 'Updated', 'Status', ''].map(h => (
+                                        {['Ref ID', 'Patient', 'Diagnosis', 'Insurer / TPA', 'Amount', 'Readiness', 'Complexity', 'Updated', 'Status', ''].map(h => (
                                             <th key={h} className="px-4 py-3 text-left text-xs font-semibold"
                                                 style={{ color: 'rgba(255,255,255,0.45)' }}>{h}</th>
                                         ))}
@@ -219,6 +220,9 @@ export const PreAuthDashboard: React.FC<PreAuthDashboardProps> = ({ onNewPreAuth
                                     {filtered.map(rec => {
                                         const dx = rec.clinical?.diagnoses?.[rec.clinical.selectedDiagnosisIndex ?? 0];
                                         const cost = rec.costEstimate?.totalEstimatedCost;
+                                        const { score } = computeReadiness(rec, rec.tpaEvidenceReview || null);
+                                        const colors = scoreColorClass(score);
+                                        const complexity = rec.complexity || 'Low';
                                         return (
                                             <tr key={rec.id}
                                                 className="cursor-pointer transition-all"
@@ -246,6 +250,20 @@ export const PreAuthDashboard: React.FC<PreAuthDashboardProps> = ({ onNewPreAuth
                                                 </td>
                                                 <td className="px-4 py-3 text-sm text-white">
                                                     {cost ? `₹${cost.toLocaleString('en-IN')}` : '—'}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border inline-block ${colors.bg} ${colors.border} ${colors.text}`}>
+                                                        {score}% Ready
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border inline-block ${
+                                                        complexity === 'Low' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                                        complexity === 'Medium' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
+                                                        'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                    }`}>
+                                                        {complexity}
+                                                    </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>
                                                     {formatDateTime(rec.updatedAt)}

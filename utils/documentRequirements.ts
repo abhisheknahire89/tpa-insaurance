@@ -1,5 +1,32 @@
 import { DocumentRequirement, DocumentCategory } from '../types';
 
+/**
+ * Strictly validates an ICD-10 code string before prefix extraction.
+ *
+ * Returns the code unchanged if it is already well-formed, or an empty string
+ * if it is malformed or requires transformation. Rules:
+ *   1. Must be a non-empty string with NO leading or trailing whitespace.
+ *      (A code with whitespace was never properly confirmed via WHO lookup.)
+ *   2. First character must be an uppercase ASCII letter (A-Z).
+ *   3. Second and third characters must be ASCII digits (0-9).
+ *   4. Position 3 (if present) must be '.' or a digit — never a space, symbol,
+ *      or any other character.
+ *
+ * NOTE: We do NOT silently normalize (trim / uppercase) the input.
+ * A code that needs normalization to pass is a code that was never properly
+ * confirmed through the icdService validator, and should fail safe.
+ */
+function normalizeIcdCode(raw: string): string {
+    if (!raw || typeof raw !== 'string') return '';
+    // Reject immediately if there is any leading or trailing whitespace
+    if (raw !== raw.trim()) return '';
+    // Must start with uppercase letter + 2 digits (strict — no case folding)
+    if (!/^[A-Z][0-9]{2}/.test(raw)) return '';
+    // Validate the 4th character if present — must be '.' or digit
+    if (raw.length > 3 && !/^[0-9.]$/.test(raw[3])) return '';
+    return raw;
+}
+
 // Maps ICD-10 codes (or diagnosis categories) to required documents
 const diagnosisDocumentMap: Record<string, DocumentCategory[]> = {
     // Respiratory
@@ -20,6 +47,24 @@ const diagnosisDocumentMap: Record<string, DocumentCategory[]> = {
 
     // Musculoskeletal / Joint
     'M17': ['xray_knee', 'cbc'],                   // Knee Osteoarthritis (TKR)
+
+    // Stroke / Intracerebral Hemorrhage
+    'I60': ['ct_scan', 'mri', 'cbc'],              // Ruptured aneurysm SAH
+    'I61': ['ct_scan', 'mri', 'cbc'],              // Intracerebral hemorrhage
+    'I63': ['ct_scan', 'mri', 'cbc'],              // Cerebral stroke
+
+    // Renal / Kidney Failure
+    'N17': ['kft', 'cbc', 'urine_routine'],        // Acute kidney injury
+    'N18': ['kft', 'cbc', 'urine_routine'],        // Chronic kidney disease / ESRD
+
+    // Oncology / Neoplasms
+    'C34': ['ct_scan', 'mri', 'cbc'],              // Lung cancer
+    'C49': ['ct_scan', 'mri', 'cbc'],              // Retroperitoneal Sarcoma
+    'C32': ['ct_scan', 'other', 'cbc'],            // Larynx cancer
+    'C25': ['ct_scan', 'mri', 'cbc'],              // Pancreatic cancer
+
+    // Burns
+    'T31': ['cbc', 'other'],                       // Burns (requires burn assessment chart)
 
     // Default for unknown
     'default': ['cbc'],
@@ -48,9 +93,12 @@ const documentDetails: Record<DocumentCategory, { displayName: string; descripti
 export const getRequiredDocuments = (diagnosisOrIcd10: string): DocumentRequirement[] => {
     let category = 'default';
 
-    // Check if it's an ICD-10 code format (e.g., A90, J18.9, M17.0)
-    if (/^[A-Z][0-9]{2}/.test(diagnosisOrIcd10)) {
-        category = diagnosisOrIcd10.substring(0, 3);
+    // Normalize first — rejects codes with trailing whitespace/special chars
+    const normalized = normalizeIcdCode(diagnosisOrIcd10);
+
+    // Check if it's a valid, normalized ICD-10 code format (e.g., A90, J18.9, M17.0)
+    if (normalized) {
+        category = normalized.substring(0, 3);
     } else {
         // Fallback explicit text matching
         const lowerDiag = diagnosisOrIcd10.toLowerCase();
@@ -60,6 +108,10 @@ export const getRequiredDocuments = (diagnosisOrIcd10: string): DocumentRequirem
         else if (lowerDiag.includes('sepsis')) category = 'A41';
         else if (lowerDiag.includes('myocardial') || lowerDiag.includes('mi')) category = 'I21';
         else if (lowerDiag.includes('osteoarthritis') || lowerDiag.includes('knee') || lowerDiag.includes('tkr')) category = 'M17';
+        else if (lowerDiag.includes('stroke') || lowerDiag.includes('hemorrhage') || lowerDiag.includes('infarct') || lowerDiag.includes('sah')) category = 'I61';
+        else if (lowerDiag.includes('renal') || lowerDiag.includes('kidney') || lowerDiag.includes('nephro') || lowerDiag.includes('aki') || lowerDiag.includes('esrd')) category = 'N17';
+        else if (lowerDiag.includes('cancer') || lowerDiag.includes('sarcoma') || lowerDiag.includes('neoplasm') || lowerDiag.includes('malignant') || lowerDiag.includes('carcinoma')) category = 'C34';
+        else if (lowerDiag.includes('burn') || lowerDiag.includes('scald')) category = 'T31';
     }
 
     const requiredCategories = diagnosisDocumentMap[category] || diagnosisDocumentMap['default'];
@@ -74,6 +126,30 @@ export const getRequiredDocuments = (diagnosisOrIcd10: string): DocumentRequirem
             description: documentDetails[cat].description,
         };
     });
+};
+
+export const isIcdMapped = (diagnosisOrIcd10: string): boolean => {
+    let category = 'default';
+
+    // Normalize first — rejects codes with trailing whitespace/special chars
+    const normalized = normalizeIcdCode(diagnosisOrIcd10);
+
+    if (normalized) {
+        category = normalized.substring(0, 3);
+    } else {
+        const lowerDiag = diagnosisOrIcd10.toLowerCase();
+        if (lowerDiag.includes('dengue')) category = 'A90';
+        else if (lowerDiag.includes('appendicitis')) category = 'K35';
+        else if (lowerDiag.includes('pneumonia')) category = 'J18';
+        else if (lowerDiag.includes('sepsis')) category = 'A41';
+        else if (lowerDiag.includes('myocardial') || lowerDiag.includes('mi')) category = 'I21';
+        else if (lowerDiag.includes('osteoarthritis') || lowerDiag.includes('knee') || lowerDiag.includes('tkr')) category = 'M17';
+        else if (lowerDiag.includes('stroke') || lowerDiag.includes('hemorrhage') || lowerDiag.includes('infarct') || lowerDiag.includes('sah')) category = 'I61';
+        else if (lowerDiag.includes('renal') || lowerDiag.includes('kidney') || lowerDiag.includes('nephro') || lowerDiag.includes('aki') || lowerDiag.includes('esrd')) category = 'N17';
+        else if (lowerDiag.includes('cancer') || lowerDiag.includes('sarcoma') || lowerDiag.includes('neoplasm') || lowerDiag.includes('malignant') || lowerDiag.includes('carcinoma')) category = 'C34';
+        else if (lowerDiag.includes('burn') || lowerDiag.includes('scald')) category = 'T31';
+    }
+    return category !== 'default' && diagnosisDocumentMap[category] !== undefined;
 };
 
 /**

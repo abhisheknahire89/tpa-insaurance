@@ -5,10 +5,28 @@
 // For this frontend-only prototype, we are keeping the Gemini SDK calls here to demonstrate
 // the correct architecture and prepare for a seamless transition to a real backend.
 
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+import { Modality, GenerateContentResponse } from "@google/genai";
+import { getGoogleGenAIClient, rotateApiKey } from './apiKeys';
 
-// This is the ONLY place the API key should be referenced.
-const ai = new GoogleGenAI({ apiKey: ((import.meta as any).env?.VITE_GEMINI_API_KEY || '') });
+async function withFallback<T>(operation: (client: any) => Promise<T>): Promise<T> {
+    let attempts = 3;
+    let lastError: any = null;
+    while (attempts > 0) {
+        try {
+            const client = getGoogleGenAIClient();
+            return await operation(client);
+        } catch (error: any) {
+            lastError = error;
+            attempts--;
+            if (attempts > 0 && rotateApiKey()) {
+                console.warn("[withFallback] Retrying operation with fallback API key...");
+                continue;
+            }
+            break;
+        }
+    }
+    throw lastError || new Error("All API keys failed");
+}
 
 // This simulates the structure of a backend that would handle various endpoints.
 export const postToProxy = async (endpoint: string, body: any): Promise<any> => {
@@ -36,9 +54,9 @@ export const postToProxy = async (endpoint: string, body: any): Promise<any> => 
 async function callGeminiGenerateContent(body: any): Promise<GenerateContentResponse> {
     const { model, contents, config } = body;
     try {
-        const response = await ai.models.generateContent({ model, contents, config });
-        // The real API returns a complex object, we return it whole.
-        return response;
+        return await withFallback(async (client) => {
+            return await client.models.generateContent({ model, contents, config });
+        });
     } catch (error) {
         console.error("Gemini API error (via proxy simulation):", error);
         throw error;
@@ -48,18 +66,18 @@ async function callGeminiGenerateContent(body: any): Promise<GenerateContentResp
 async function callGeminiStream(body: any): Promise<AsyncGenerator<string>> {
     const { model, contents, config } = body;
     try {
-        const responseStream = await ai.models.generateContentStream({ model, contents, config });
-        
-        // We need to adapt the SDK's stream to a simple text chunk stream for the UI
-        async function* textStream(): AsyncGenerator<string> {
-            for await (const chunk of responseStream) {
-                if(chunk.text) {
-                    yield chunk.text;
+        return await withFallback(async (client) => {
+            const responseStream = await client.models.generateContentStream({ model, contents, config });
+            
+            async function* textStream(): AsyncGenerator<string> {
+                for await (const chunk of responseStream) {
+                    if(chunk.text) {
+                        yield chunk.text;
+                    }
                 }
             }
-        }
-        return textStream();
-
+            return textStream();
+        });
     } catch (error) {
         console.error("Gemini API streaming error (via proxy simulation):", error);
         throw error;
@@ -70,40 +88,35 @@ async function callGeminiStream(body: any): Promise<AsyncGenerator<string>> {
 // Simulates the structure expected by services/googleTtsService.ts but uses Gemini model
 async function callGeminiTts(body: any): Promise<{ audioContent: string | null }> {
     try {
-        const { input, voice } = body;
+        const { input } = body;
         const text = input.text;
-        // voice.languageCode is available but gemini tts uses voiceName.
-        
-        // Use 'Kore' as a standard high-quality voice per documentation examples
         const voiceName = 'Kore'; 
 
-        const response = await ai.models.generateContent({
-             model: "gemini-2.5-flash-preview-tts",
-             // Strictly follow the contents: [{ parts: [{ text }] }] structure
-             contents: [{ parts: [{ text: text }] }],
-             config: {
-                // FIX: Use Modality.AUDIO from @google/genai instead of string literal 'AUDIO'
-                responseModalities: [Modality.AUDIO], 
-                speechConfig: {
-                    voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: voiceName }
+        return await withFallback(async (client) => {
+            const response = await client.models.generateContent({
+                 model: "gemini-2.5-flash-preview-tts",
+                 contents: [{ parts: [{ text: text }] }],
+                 config: {
+                    responseModalities: [Modality.AUDIO], 
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: voiceName }
+                        }
                     }
-                }
-             }
+                 }
+            });
+            
+            const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+            
+            if (pcmBase64) {
+                const pcmData = base64ToUint8Array(pcmBase64);
+                const wavData = addWavHeader(pcmData, 24000, 1); // 24kHz mono is standard for this model
+                const wavBase64 = uint8ArrayToBase64(wavData);
+                return { audioContent: wavBase64 };
+            }
+            
+            return { audioContent: null };
         });
-        
-        const pcmBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        
-        if (pcmBase64) {
-            // Convert PCM Base64 to WAV Base64 so browsers can play it via <audio src="data:audio/wav;base64,...">
-            const pcmData = base64ToUint8Array(pcmBase64);
-            const wavData = addWavHeader(pcmData, 24000, 1); // 24kHz mono is standard for this model
-            const wavBase64 = uint8ArrayToBase64(wavData);
-            return { audioContent: wavBase64 };
-        }
-        
-        return { audioContent: null };
-
     } catch (error) {
         console.error('Failed to synthesize speech via Gemini:', error);
         return { audioContent: null };

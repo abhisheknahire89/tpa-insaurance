@@ -4,6 +4,7 @@ import { getConditionByCode, getConditionByName } from '../config/icd10Database'
 import { calculateCost, findConditionByICD } from './costEstimationService';
 import { calculateTotals } from '../utils/costCalculator';
 import { generatePartC, generatePartCText } from '../engine/partCGenerator';
+import { validateCode } from './icdService';
 
 /**
  * If the cost estimate is all zeros, auto-calculate from ICD cost database.
@@ -135,7 +136,7 @@ ${tpaRisks.map((t: string) => `• ${t}`).join('\n')}`;
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Patient: ${patient?.patientName ?? 'N/A'}, ${patient?.age ?? '?'} years, ${patient?.gender ?? 'N/A'}
-Diagnosis: ${selectedDx?.diagnosis ?? 'N/A'} (ICD-10: ${selectedDx?.icd10Code ?? 'N/A'})
+Diagnosis: ${selectedDx?.diagnosis ?? 'N/A'} (ICD-10: ${selectedDx?.icd10Code && validateCode(selectedDx.icd10Code) ? selectedDx.icd10Code : 'Pending ICD-10'})
 Diagnostic Confidence: ${selectedDx ? `${Math.round((selectedDx.probability ?? 0.85) * 100)}%` : 'N/A'}
 
 CLINICAL PRESENTATION:

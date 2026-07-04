@@ -176,8 +176,36 @@ Generate the medical necessity statement now.
   }
 };
 
-const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
-const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-to-prevent-crash' });
+import { getGoogleGenAIClient, rotateApiKey } from './apiKeys';
+
+async function callWithFallback<T>(operation: (client: any) => Promise<T>): Promise<T> {
+  let attempts = 3;
+  let lastError: any = null;
+  while (attempts > 0) {
+    try {
+      const client = getGoogleGenAIClient();
+      return await operation(client);
+    } catch (error: any) {
+      lastError = error;
+      attempts--;
+      if (attempts > 0 && rotateApiKey()) {
+        console.warn("[geminiService] Retrying operation with fallback API key...");
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastError || new Error("All API keys failed");
+}
+
+const ai = {
+  get models() {
+    return {
+      generateContent: (args: any) => callWithFallback(client => client.models.generateContent(args)),
+      generateContentStream: (args: any) => callWithFallback(client => client.models.generateContentStream(args))
+    };
+  }
+};
 
 const SUPPORTED_LANGUAGES = ["English", "Hindi", "Marathi", "Gujarati", "Tamil", "Telugu", "Kannada", "Malayalam", "Bengali", "Punjabi", "Odia", "Assamese", "Urdu"];
 

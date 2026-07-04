@@ -83,6 +83,15 @@ export interface PartCOutput {
   doctorDeclarationConfirmed: boolean;
   hospitalSealApplied: boolean;
 
+  // Suggest & confirm fields (Bucket 2)
+  relevantClinicalFindings?: string;
+  pastHistory?: string;
+  firstConsultationDate?: string;
+  isInjury?: boolean;
+  alcoholInvolvement?: boolean;
+  hasOtherHealthPolicy?: boolean;
+  familyPhysicianName?: string;
+
   // Metadata
   generatedAt: string;
   formVersion: string;
@@ -395,6 +404,15 @@ export function generatePartC(
     doctorDeclarationConfirmed,
     hospitalSealApplied,
 
+    // Suggest & confirm fields (Bucket 2)
+    relevantClinicalFindings: record.clinical?.relevantClinicalFindings || '',
+    pastHistory: record.clinical?.historyOfPresentIllness || '',
+    firstConsultationDate: record.clinical?.firstConsultationDate || '',
+    isInjury: record.clinical?.injuryDetails?.isInjury,
+    alcoholInvolvement: record.clinical?.injuryDetails?.alcoholInvolvement,
+    hasOtherHealthPolicy: record.insurance?.hasOtherHealthPolicy,
+    familyPhysicianName: record.patient?.familyPhysicianName || '',
+
     // Metadata
     generatedAt: new Date().toISOString(),
     formVersion: 'IRDAI-Part-C-v1.0',
@@ -467,11 +485,26 @@ export function generatePartCText(partC: PartCOutput): string {
   lines.push(`Insurer             : ${partC.insurerName}`);
   lines.push(`TPA                 : ${partC.tpaName}`);
   lines.push(`Patient Consent     : ${partC.patientConsentGiven ? '✅ Obtained' : '⛔ MISSING'}`);
+  lines.push(`Other Health Policy : ${partC.hasOtherHealthPolicy === true ? 'Yes' : partC.hasOtherHealthPolicy === false ? 'No' : '—'}`);
+  lines.push(`Family Physician    : ${partC.familyPhysicianName || '—'}`);
+  lines.push('');
+
+  // Past History & Relevant Findings
+  lines.push(sep);
+  lines.push('SECTION 4 — ADDITIONAL CLINICAL HISTORY');
+  lines.push(sep);
+  lines.push(`1st Consultation Dt : ${partC.firstConsultationDate || '—'}`);
+  lines.push(`Past History        : ${partC.pastHistory || '—'}`);
+  lines.push(`Relevant Findings   : ${partC.relevantClinicalFindings || '—'}`);
+  lines.push(`Is Injury?          : ${partC.isInjury === true ? 'Yes' : partC.isInjury === false ? 'No' : '—'}`);
+  if (partC.isInjury) {
+    lines.push(`Alcohol Involved?   : ${partC.alcoholInvolvement === true ? 'Yes' : partC.alcoholInvolvement === false ? 'No' : '—'}`);
+  }
   lines.push('');
 
   // Clinical & ICD
   lines.push(sep);
-  lines.push('SECTION 4 — CLINICAL DETAILS');
+  lines.push('SECTION 5 — CLINICAL DETAILS');
   lines.push(sep);
   lines.push(`Provisional Diagnosis: ${partC.diagnosisName}`);
   lines.push(`ICD-10 Code          : ${partC.icd.code} — ${partC.icd.description}`);
@@ -487,7 +520,7 @@ export function generatePartCText(partC: PartCOutput): string {
 
   // Evidence
   lines.push(sep);
-  lines.push('SECTION 5 — TPA EVIDENCE SUFFICIENCY');
+  lines.push('SECTION 6 — TPA EVIDENCE SUFFICIENCY');
   lines.push(sep);
   const evLabel = partC.evidenceStatus === 'sufficient' ? '✅ SUFFICIENT' : '⚠️  INSUFFICIENT';
   lines.push(`Evidence Status     : ${evLabel}`);
@@ -528,7 +561,7 @@ export function generatePartCText(partC: PartCOutput): string {
 
   // Cost
   lines.push(sep);
-  lines.push('SECTION 6 — COST ESTIMATE');
+  lines.push('SECTION 7 — COST ESTIMATE');
   lines.push(sep);
   Object.entries(partC.costBreakdown).forEach(([label, amount]) => {
     if (amount > 0) lines.push(`  ${label.padEnd(22)}: ₹${amount.toLocaleString('en-IN')}`);
@@ -540,7 +573,7 @@ export function generatePartCText(partC: PartCOutput): string {
 
   // Declarations
   lines.push(sep);
-  lines.push('SECTION 7 — DECLARATIONS');
+  lines.push('SECTION 8 — DECLARATIONS');
   lines.push(sep);
   lines.push(`Doctor Declaration  : ${partC.doctorDeclarationConfirmed ? '✅ Confirmed' : '⛔ Pending'}`);
   lines.push(`Patient Consent     : ${partC.patientConsentGiven ? '✅ Obtained' : '⛔ Pending'}`);
@@ -561,7 +594,7 @@ export function generatePartCText(partC: PartCOutput): string {
   // Warnings (Consistency Checks)
   if (partC.warnings && partC.warnings.length > 0) {
     lines.push(sep);
-    lines.push('SECTION 8 — INTERNAL CONSISTENCY WARNINGS');
+    lines.push('SECTION 9 — INTERNAL CONSISTENCY WARNINGS');
     lines.push(sep);
     partC.warnings.forEach(w => lines.push(`⚠️  ${w}`));
     lines.push('');
@@ -582,3 +615,4 @@ export function generatePartCText(partC: PartCOutput): string {
 
   return lines.join('\n');
 }
+

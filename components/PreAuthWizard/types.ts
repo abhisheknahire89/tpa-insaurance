@@ -256,6 +256,7 @@ export interface ClinicalDetails {
     };
     voiceCapturedFindings: WizardVoiceFinding[];
     additionalClinicalNotes: string;
+    firstConsultationDate?: string;
     matchedPackageData?: {
         hbp_code: string;
         package_name: string;
@@ -361,6 +362,10 @@ export interface WizardDocument {
     linkedFindingId?: string;
     isRequired: boolean;
     description?: string;
+    duplicateWarning?: string;
+    expiryWarning?: string;
+    readabilityWarning?: string;
+    readabilityConfidence?: number;
 }
 
 export interface WizardDocumentRequirement {
@@ -413,8 +418,24 @@ export interface HospitalDeclarationData {
 }
 
 // ============================================
+// ============================================
+// EVIDENCE AUTO-FILL SUGGESTIONS
+// ============================================
+
+export interface EvidenceSuggestion {
+    field: string;
+    displayName: string;
+    suggestedValue: string;
+    sourceSnippet: string;
+    sourceDocName: string;
+    confidence: number;
+}
+
+// ============================================
 // FULL PRE-AUTH RECORD
 // ============================================
+
+export type CaseComplexity = 'Low' | 'Medium' | 'High';
 
 export interface PreAuthRecord {
     id: string;
@@ -448,6 +469,10 @@ export interface PreAuthRecord {
         denialReason?: string;
         queryDetails?: string;
     };
+    complexity?: CaseComplexity;
+    complexityReason?: string;
+    evidenceSuggestions?: EvidenceSuggestion[];
+    acceptedSuggestions?: string[]; // Field names list (e.g. ['clinical.relevantClinicalFindings'])
 }
 
 // ============================================

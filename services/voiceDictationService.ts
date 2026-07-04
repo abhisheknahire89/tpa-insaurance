@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { getGoogleGenAIClient, rotateApiKey } from './apiKeys';
 import {
   PatientRecord, InsurancePolicyDetails, ClinicalDetails,
   AdmissionDetails, DiagnosisEntry, WizardVoiceFinding
@@ -83,15 +83,33 @@ export interface VoiceExtractedData {
 }
 
 export async function parseTranscriptWithGemini(transcript: string): Promise<VoiceExtractedData> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY;
-  if (!apiKey) throw new Error('Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your environment variables.');
-  const ai = new GoogleGenAI({ apiKey });
+  let attempts = 3;
+  let lastError: any = null;
+  let result: any = null;
 
-  const result = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nDoctor's transcript:\n"""\n${transcript}\n"""` }] }],
-    config: { temperature: 0.1, responseMimeType: 'application/json' }
-  });
+  while (attempts > 0) {
+    try {
+      const client = getGoogleGenAIClient();
+      result = await client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nDoctor's transcript:\n"""\n${transcript}\n"""` }] }],
+        config: { temperature: 0.1, responseMimeType: 'application/json' }
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+      attempts--;
+      if (attempts > 0 && rotateApiKey()) {
+        console.warn("[voiceDictationService] Retrying transcript parsing with fallback API key...");
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (!result) {
+    throw lastError || new Error("Failed to parse transcript: All API keys failed");
+  }
 
   const text = result.text ?? '{}';
   let parsed: any = {};

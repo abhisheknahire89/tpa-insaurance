@@ -8,12 +8,16 @@ export const checkMandatoryGaps = (record: Partial<PreAuthRecord>): string[] => 
   const gaps: string[] = [];
 
   // 1. Discharge Summary Check
-  const hasDischargeSummary = record.uploadedDocuments?.some(
-    (doc) => doc.documentCategory === 'discharge_summary'
-  );
-  if (!hasDischargeSummary) {
-    gaps.push('Discharge summary is missing from uploaded documents.');
-  }
+  // NOTE: A discharge summary is a POST-DISCHARGE document. It is NEVER present at the
+  // pre-authorization stage. This check is intentionally skipped for pre-auth submissions.
+  // It should only be re-enabled for post-hospitalization claim reimbursement flows.
+  // Flagging its absence on pre-auth was the #1 source of false positives (98%+ hallucination rate).
+  // const hasDischargeSummary = record.uploadedDocuments?.some(
+  //   (doc) => doc.documentCategory === 'discharge_summary'
+  // );
+  // if (!hasDischargeSummary) {
+  //   gaps.push('Discharge summary is missing from uploaded documents.');
+  // }
 
   // 2. MLC/FIR for Accident cases
   const isInjury = record.clinical?.injuryDetails?.isInjury;

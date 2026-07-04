@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PreAuthWizard } from './PreAuthWizard';
+import { PreAuthDashboard } from './PreAuthDashboard';
 import { getRequiredDocuments } from '../data/icd10DocumentMap';
 import { extractInsurancePreAuthData } from '../services/geminiService';
 import { DIABETES_DEMO_RECORD, PNEUMONIA_DEMO_RECORD, APPENDICITIS_DEMO_RECORD } from '../data/demoCases';
@@ -541,7 +542,9 @@ export const InsuranceModule: React.FC = () => {
     const [mockClinicalNote, setMockClinicalNote] = useState('');
     const [isExtracting, setIsExtracting] = useState(false);
     const [prefilledData, setPrefilledData] = useState<any>(null);
+    const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [showWizard, setShowWizard] = useState(false);
+    const [showExtractor, setShowExtractor] = useState(false);
 
     // Demo Mode States
     const [isDemoMode, setIsDemoMode] = useState(false);
@@ -575,6 +578,8 @@ export const InsuranceModule: React.FC = () => {
         setShowWizard(false);
         setIsDemoMode(false);
         setPrefilledData(null);
+        setSelectedRecord(null);
+        setShowExtractor(false);
     };
 
     return (
@@ -623,19 +628,19 @@ export const InsuranceModule: React.FC = () => {
                 {/* Content area */}
                 <div className="mt-4">
                     {activeModule === 'preauth' && (
-                        <div className="relative border border-white/10 rounded-xl overflow-hidden min-h-[500px] flex flex-col items-center justify-center bg-gray-950 p-6">
+                        <div className="relative border border-white/10 rounded-xl overflow-hidden min-h-[500px] flex flex-col bg-gray-950">
                             {showWizard ? (
                                 <PreAuthWizard
                                     onClose={resetDemo}
                                     prefilledData={prefilledData}
-                                    existingRecord={isDemoMode ? (prefilledData as any) : preAuthOutput?.record}
+                                    existingRecord={selectedRecord || (isDemoMode ? (prefilledData as any) : preAuthOutput?.record)}
                                     startAtStep={isDemoMode ? demoStartStep : 1}
                                     defaultTab={isDemoMode ? demoDefaultTab : undefined}
                                     isDemo={isDemoMode}
                                     onResetDemo={isDemoMode ? resetDemo : undefined}
                                 />
                             ) : isDemoMode ? (
-                                <div className="w-full max-w-4xl space-y-6">
+                                <div className="w-full max-w-4xl space-y-6 p-6 mx-auto">
                                     <div className="text-center space-y-2">
                                         <div className="inline-block bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                                             ⚡ Presentation Sandbox
@@ -752,10 +757,18 @@ export const InsuranceModule: React.FC = () => {
                                         </button>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="p-8 w-full max-w-3xl space-y-6">
-                                    <h3 className="text-xl font-bold text-gray-200">Test Pre-Auth Flow</h3>
-                                    <p className="text-sm text-gray-400">Paste an entire clinical note below to magically extract all Pre-Authorization fields utilizing the AI model. This represents the API integration layer.</p>
+                            ) : showExtractor ? (
+                                <div className="p-8 w-full max-w-3xl space-y-6 mx-auto">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-xl font-bold text-gray-200">New Pre-Authorization Case</h3>
+                                        <button
+                                            onClick={() => setShowExtractor(false)}
+                                            className="text-xs text-gray-400 hover:text-white underline transition"
+                                        >
+                                            ← Back to Dashboard
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-gray-400">Paste a clinical note below to automatically extract and pre-fill Pre-Authorization fields using AI, or skip to start with manual entry.</p>
 
                                     <textarea
                                         className="w-full h-64 bg-gray-900 border border-gray-700 rounded-lg p-4 text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500"
@@ -767,7 +780,11 @@ export const InsuranceModule: React.FC = () => {
                                     <div className="flex justify-end gap-3 mt-4">
                                         <button
                                             className="px-6 py-3 bg-gray-800 hover:bg-gray-700 font-semibold rounded-lg text-white"
-                                            onClick={() => setShowWizard(true)}
+                                            onClick={() => {
+                                                setPrefilledData(null);
+                                                setSelectedRecord(null);
+                                                setShowWizard(true);
+                                            }}
                                         >
                                             Skip / Manual Entry
                                         </button>
@@ -780,6 +797,15 @@ export const InsuranceModule: React.FC = () => {
                                         </button>
                                     </div>
                                 </div>
+                            ) : (
+                                <PreAuthDashboard
+                                    onNewPreAuth={() => setShowExtractor(true)}
+                                    onOpenPreAuth={(rec) => {
+                                        setSelectedRecord(rec);
+                                        setShowWizard(true);
+                                    }}
+                                    onSettings={() => alert("Settings configuration coming soon.")}
+                                />
                             )}
                         </div>
                     )}

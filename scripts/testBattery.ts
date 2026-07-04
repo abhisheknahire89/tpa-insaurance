@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Interface for test case input configuration
-interface TestCase {
+export interface TestCase {
   id: number;
   category: 'A' | 'B' | 'C' | 'D' | 'E';
   diagnosis: string;
@@ -73,7 +73,7 @@ interface TestCase {
 }
 
 // Helper to construct PreAuthRecord from TestCase
-function makePreAuthRecord(tc: TestCase): PreAuthRecord {
+export function makePreAuthRecord(tc: TestCase): PreAuthRecord {
   const selectedIdx = 0;
   const pmh: any = {};
   if (tc.pastMedicalHistory) {
@@ -244,7 +244,7 @@ function saveCache() {
 }
 
 // 100 Test Cases Definition
-const testCases: TestCase[] = [
+export const testCases: TestCase[] = [
   // ==========================================
   // CATEGORY A: INSUFFICIENT CASES (1 to 45)
   // ==========================================

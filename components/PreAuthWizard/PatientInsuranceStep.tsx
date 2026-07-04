@@ -3,6 +3,7 @@ import { PatientRecord, InsurancePolicyDetails, EntryPath } from '../PreAuthWiza
 import { INSURER_LIST, INDIAN_STATES, TPA_NAMES } from '../../config/tpaRegistry';
 import { calculateAge, isPolicyActive, isPolicyExpiringSoon, todayISO } from '../../utils/formatters';
 import { extractFromDocument } from '../../services/documentExtractionService';
+import { searchPatients } from '../../services/storageService';
 
 interface PatientInsuranceStepProps {
     patient: Partial<PatientRecord>;
@@ -19,11 +20,55 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
     const [isExtracting, setIsExtracting] = useState(false);
     const [ocrDone, setOcrDone] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<PatientRecord[]>([]);
+    const [searching, setSearching] = useState(false);
     const [policyDateWarning, setPolicyDateWarning] = useState('');
     const [extractionException, setExtractionException] = useState('');
     const [extractionResult, setExtractionResult] = useState<{ filled: string[], pending: string[] } | null>(null);
 
     const fileRef = useRef<HTMLInputElement>(null);
+
+    const handleSearch = async (query: string) => {
+        setSearchQuery(query);
+        if (query.trim().length > 1) {
+            setSearching(true);
+            try {
+                const results = await searchPatients(query);
+                setSearchResults(results);
+            } catch (err) {
+                console.error("Error searching patients:", err);
+            } finally {
+                setSearching(false);
+            }
+        } else {
+            setSearchResults([]);
+        }
+    };
+
+    const handleSelectPatient = (p: PatientRecord) => {
+        onPatientChange({
+            ...patient,
+            patientName: p.patientName,
+            dateOfBirth: p.dateOfBirth,
+            age: p.age,
+            gender: p.gender,
+            maritalStatus: p.maritalStatus,
+            mobileNumber: p.mobileNumber,
+            email: p.email,
+            city: p.city,
+            state: p.state,
+            uhid: p.uhid
+        });
+        if (p.lastKnownPolicyNumber) {
+            onInsuranceChange({
+                ...insurance,
+                policyNumber: p.lastKnownPolicyNumber,
+                insurerName: p.lastKnownInsurer || '',
+                tpaName: (p.lastKnownTPA as any) || ''
+            });
+        }
+        setEntryPath('manual');
+    };
 
     const handleDOBChange = (dob: string) => {
         onPatientChange({ ...patient, dateOfBirth: dob, age: calculateAge(dob) });
@@ -163,6 +208,75 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
         );
     }
 
+    if (entryPath === 'search_existing') {
+        return (
+            <div className="space-y-6">
+                <button onClick={() => setEntryPath(null)} className="text-gray-400 hover:text-white text-xs flex items-center gap-1.5 font-medium transition-colors" type="button">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                    </svg>
+                    Back
+                </button>
+                <div>
+                    <h2 className="text-lg font-semibold text-white">Search Patient Registry</h2>
+                    <p className="text-gray-400 text-sm mt-1">Search patient by name, mobile, or UHID identifier</p>
+                </div>
+                <div className="space-y-4">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={e => handleSearch(e.target.value)}
+                            className="w-full bg-gray-900 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+                            placeholder="Enter Name, Mobile, UHID..."
+                            autoFocus
+                        />
+                        <div className="absolute left-3 top-3.5 text-gray-500">
+                            {searching ? (
+                                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            )}
+                        </div>
+                    </div>
+
+                    {searchResults.length > 0 ? (
+                        <div className="bg-gray-900/40 border border-white/5 rounded-xl divide-y divide-white/5 overflow-hidden">
+                            {searchResults.map(p => (
+                                <div
+                                    key={p.id}
+                                    onClick={() => handleSelectPatient(p)}
+                                    className="p-4 hover:bg-white/5 cursor-pointer flex justify-between items-start transition-colors"
+                                >
+                                    <div>
+                                        <div className="font-semibold text-sm text-white">{p.patientName}</div>
+                                        <div className="text-xs text-gray-400 mt-1 flex gap-3 font-mono">
+                                            <span>UHID: {p.uhid || 'N/A'}</span>
+                                            <span>Phone: {p.mobileNumber}</span>
+                                            <span>{p.gender}, {p.age}y</span>
+                                        </div>
+                                    </div>
+                                    {p.lastKnownPolicyNumber && (
+                                        <div className="text-right">
+                                            <span className="text-[10px] uppercase font-bold tracking-wider text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/10 block">
+                                                {p.lastKnownInsurer || 'Has Policy'}
+                                            </span>
+                                            <span className="text-[9px] text-gray-500 font-mono block mt-1">Pol: {p.lastKnownPolicyNumber}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : searchQuery.trim().length > 1 ? (
+                        <p className="text-xs text-gray-500 text-center py-6">No matching patient records found.</p>
+                    ) : null}
+                </div>
+            </div>
+        );
+    }
+
     if (entryPath === 'scan_card' && !ocrDone) {
         return (
             <div className="space-y-6">
@@ -211,31 +325,29 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-base font-semibold text-white">Patient & Insurance Details</h2>
+                    <h2 className="text-sm font-semibold text-white uppercase tracking-wider">Patient & Insurance Details</h2>
                 </div>
-                <button onClick={() => setEntryPath(null)} className="text-xs text-gray-400 hover:text-white transition-colors" type="button">Change entry method</button>
+                <button onClick={() => setEntryPath(null)} className="text-xs text-blue-400 hover:text-blue-300 font-semibold transition-colors" type="button">Change Entry Method</button>
             </div>
 
             {/* Extraction Results Summary */}
             {ocrDone && extractionResult && (
-                <div className="bg-blue-950/10 border border-blue-500/20 rounded-2xl p-5 mb-4 max-w-full overflow-hidden">
+                <div className="bg-blue-950/10 border border-blue-500/20 rounded-xl p-5 mb-4 max-w-full overflow-hidden">
                     <div className="flex gap-3 mb-4 items-center">
-                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg">✨</div>
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center text-sm font-bold">✨</div>
                         <div>
-                            <h3 className="text-white font-semibold text-sm">Extraction Complete</h3>
-                            <p className="text-gray-400 text-xs mt-0.5">AI successfully processed the document</p>
+                            <h3 className="text-white font-semibold text-xs uppercase tracking-wider">Extraction Complete</h3>
+                            <p className="text-gray-400 text-xs mt-0.5">Aivana OCR parsed registration details</p>
                         </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4 bg-black/30 p-4 rounded-xl">
                         <div>
                             <div className="text-green-400 text-xs font-bold flex items-center gap-1.5 mb-2">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-                                </svg>
-                                Auto-filled fields:
+                                <span>✓</span>
+                                <span>Auto-filled fields:</span>
                             </div>
-                            <ul className="text-green-300/80 text-[11px] space-y-1 ml-5 list-disc leading-relaxed">
+                            <ul className="text-green-300/80 text-[11px] space-y-1 ml-5 list-disc leading-relaxed font-semibold">
                                 {extractionResult.filled.length > 0 ? (
                                     extractionResult.filled.map(f => (<li key={f}>{f}</li>))
                                 ) : (
@@ -245,12 +357,10 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
                         </div>
                         <div>
                             <div className="text-amber-400 text-xs font-bold flex items-center gap-1.5 mb-2">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                Fill manually:
+                                <span>ℹ</span>
+                                <span>Fill manually:</span>
                             </div>
-                            <ul className="text-amber-300/80 text-[11px] space-y-1 ml-5 list-disc leading-relaxed">
+                            <ul className="text-amber-300/80 text-[11px] space-y-1 ml-5 list-disc leading-relaxed font-semibold">
                                 {extractionResult.pending.length > 0 ? (
                                     extractionResult.pending.map(f => (<li key={f}>{f}</li>))
                                 ) : (
@@ -263,144 +373,144 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
             )}
 
             {/* Patient Demographics */}
-            <div className="bg-gray-900/30 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
-                <h3 className="font-semibold text-blue-400 text-xs flex items-center gap-2 uppercase tracking-wider">👤 Patient Demographics</h3>
+            <div className="bg-white/[0.01] border border-white/5 rounded-xl p-5 space-y-4 shadow-sm">
+                <h3 className="font-semibold text-gray-300 text-[10px] uppercase tracking-wider border-b border-white/5 pb-2">👤 Patient Demographics</h3>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Full Name <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Full Name *</label>
                         <input value={patient.patientName ?? ''} onChange={e => onPatientChange({ ...patient, patientName: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="As on insurance card" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="As on insurance card" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Date of Birth</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Date of Birth</label>
                         <input type="date" value={patient.dateOfBirth ?? ''} onChange={e => handleDOBChange(e.target.value)}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Age <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Age *</label>
                         <input type="number" value={patient.age ?? ''} onChange={e => onPatientChange({ ...patient, age: +e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="Years" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="Years" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Gender <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Gender *</label>
                         <select value={patient.gender ?? ''} onChange={e => onPatientChange({ ...patient, gender: e.target.value as any })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors">
-                            <option value="">Select</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                            <option value="Other">Other</option>
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <option value="" className="bg-[#0B0F19]">Select</option>
+                            <option value="Male" className="bg-[#0B0F19]">Male</option>
+                            <option value="Female" className="bg-[#0B0F19]">Female</option>
+                            <option value="Other" className="bg-[#0B0F19]">Other</option>
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Marital Status</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Marital Status</label>
                         <select value={patient.maritalStatus ?? ''} onChange={e => onPatientChange({ ...patient, maritalStatus: e.target.value as any })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors">
-                            <option value="">Select</option>
-                            <option>Single</option><option>Married</option><option>Widowed</option><option>Divorced</option>
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <option value="" className="bg-[#0B0F19]">Select</option>
+                            <option className="bg-[#0B0F19]">Single</option><option className="bg-[#0B0F19]">Married</option><option className="bg-[#0B0F19]">Widowed</option><option className="bg-[#0B0F19]">Divorced</option>
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Mobile Number <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Mobile Number *</label>
                         <input type="tel" value={patient.mobileNumber ?? ''} onChange={e => onPatientChange({ ...patient, mobileNumber: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="+91 XXXXX XXXXX" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="+91 XXXXX XXXXX" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Email</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Email</label>
                         <input type="email" value={patient.email ?? ''} onChange={e => onPatientChange({ ...patient, email: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="optional" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="optional" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">City <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">City *</label>
                         <input value={patient.city ?? ''} onChange={e => onPatientChange({ ...patient, city: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">State <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">State *</label>
                         <select value={patient.state ?? ''} onChange={e => onPatientChange({ ...patient, state: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors">
-                            <option value="">Select State</option>
-                            {INDIAN_STATES.map(s => <option key={s}>{s}</option>)}
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <option value="" className="bg-[#0B0F19]">Select State</option>
+                            {INDIAN_STATES.map(s => <option key={s} className="bg-[#0B0F19]">{s}</option>)}
                         </select>
                     </div>
                     <div className="col-span-2">
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">UHID (Hospital ID)</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">UHID (Hospital ID)</label>
                         <input value={patient.uhid ?? ''} onChange={e => onPatientChange({ ...patient, uhid: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="Optional identifier" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="Optional identifier" />
                     </div>
                 </div>
             </div>
 
             {/* Insurance Details */}
-            <div className="bg-gray-900/30 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
-                <h3 className="font-semibold text-blue-400 text-xs flex items-center gap-2 uppercase tracking-wider">🛡️ Insurance & Policy Details</h3>
+            <div className="bg-white/[0.01] border border-white/5 rounded-xl p-5 space-y-4 shadow-sm">
+                <h3 className="font-semibold text-gray-300 text-[10px] uppercase tracking-wider border-b border-white/5 pb-2">🛡️ Insurance & Policy Details</h3>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Insurance Company <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Insurance Company *</label>
                         <datalist id="insurer-list">{INSURER_LIST.map(i => <option key={i} value={i} />)}</datalist>
                         <input list="insurer-list" value={insurance.insurerName ?? ''} onChange={e => onInsuranceChange({ ...insurance, insurerName: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="Start typing insurer..." />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="Start typing insurer..." />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">TPA Name <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">TPA Name *</label>
                         <select value={insurance.tpaName ?? ''} onChange={e => onInsuranceChange({ ...insurance, tpaName: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors">
-                            <option value="">Select TPA</option>
-                            {TPA_NAMES.map(t => <option key={t}>{t}</option>)}
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <option value="" className="bg-[#0B0F19]">Select TPA</option>
+                            {TPA_NAMES.map(t => <option key={t} className="bg-[#0B0F19]">{t}</option>)}
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Policy Number <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Policy Number *</label>
                         <input value={insurance.policyNumber ?? ''} onChange={e => onInsuranceChange({ ...insurance, policyNumber: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">TPA ID Card Number</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">TPA ID Card Number</label>
                         <input value={insurance.tpaIdCardNumber ?? ''} onChange={e => onInsuranceChange({ ...insurance, tpaIdCardNumber: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Policy Type</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Policy Type</label>
                         <select value={insurance.policyType ?? 'Individual'} onChange={e => onInsuranceChange({ ...insurance, policyType: e.target.value as any })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors">
-                            <option>Individual</option><option>Floater</option><option>Corporate</option><option>Group</option>
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <option className="bg-[#0B0F19]">Individual</option><option className="bg-[#0B0F19]">Floater</option><option className="bg-[#0B0F19]">Corporate</option><option className="bg-[#0B0F19]">Group</option>
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Sum Insured (₹) <span className="text-red-400 font-bold ml-0.5">*</span></label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Sum Insured (₹) *</label>
                         <input type="number" value={insurance.sumInsured ?? ''} onChange={e => onInsuranceChange({ ...insurance, sumInsured: +e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="e.g. 500000" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="e.g. 500000" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Policy Start Date</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Policy Start Date</label>
                         <input type="date" value={insurance.policyStartDate ?? ''} onChange={e => onInsuranceChange({ ...insurance, policyStartDate: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Policy End Date</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Policy End Date</label>
                         <input type="date" value={insurance.policyEndDate ?? ''} onChange={e => handlePolicyEndDate(e.target.value)}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
                         {policyDateWarning && <p className="text-amber-400 text-[11px] font-semibold mt-1.5">{policyDateWarning}</p>}
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Proposer Name</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Proposer Name</label>
                         <input value={insurance.proposerName ?? ''} onChange={e => onInsuranceChange({ ...insurance, proposerName: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 placeholder-gray-600 transition-colors" placeholder="Defaults to patient name" />
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder-gray-600 transition-all" placeholder="Defaults to patient name" />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 font-semibold mb-1.5">Relationship with Proposer</label>
+                        <label className="block text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-1">Relationship with Proposer</label>
                         <select value={insurance.relationshipWithProposer ?? 'Self'} onChange={e => onInsuranceChange({ ...insurance, relationshipWithProposer: e.target.value })}
-                            className="w-full bg-gray-900 border border-white/10 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors">
-                            <option>Self</option><option>Spouse</option><option>Son</option><option>Daughter</option><option>Father</option><option>Mother</option><option>Other</option>
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                            <option className="bg-[#0B0F19]">Self</option><option className="bg-[#0B0F19]">Spouse</option><option className="bg-[#0B0F19]">Son</option><option className="bg-[#0B0F19]">Daughter</option><option className="bg-[#0B0F19]">Father</option><option className="bg-[#0B0F19]">Mother</option><option className="bg-[#0B0F19]">Other</option>
                         </select>
                     </div>
                 </div>
             </div>
 
             <button onClick={onNext} disabled={!isValid} type="button"
-                className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-200 ${isValid ? 'bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 text-white shadow-md shadow-blue-500/10 hover:scale-[1.01] active:scale-[0.99]' : 'bg-gray-900 border border-white/5 text-gray-500 cursor-not-allowed'}`}>
-                Continue to Clinical Details →
+                className={`w-full py-2.5 rounded-lg font-bold text-xs transition-all duration-150 ${isValid ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm' : 'bg-white/5 border border-white/5 text-gray-500 cursor-not-allowed'}`}>
+                Continue to Clinical Details
             </button>
-            {!isValid && <p className="text-xs text-amber-500 font-medium text-center">Fill all required (*) fields to continue</p>}
+            {!isValid && <p className="text-[10px] text-amber-500 font-semibold text-center mt-1">Fill all required (*) fields to continue</p>}
         </div>
     );
 };

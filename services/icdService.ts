@@ -32,6 +32,29 @@ export function validateCode(code: string): boolean {
 }
 
 /**
+ * Attempts to map an invalid or sub-standard code (like US CM codes) to a valid WHO ICD-10 parent/prefix code.
+ * E.g., M17.11 -> M17.1, K35.80 -> K35.8.
+ */
+export function mapToWhoCode(code: string): string | null {
+  if (!code) return null;
+  let target = code.trim().toUpperCase();
+  if (validateCode(target)) return target;
+
+  // Progressively truncate sub-code digits to find a valid WHO parent code (e.g. M17.11 -> M17.1 -> M17)
+  while (target.length > 2) {
+    if (target.endsWith('.')) {
+      target = target.substring(0, target.length - 1);
+    } else {
+      target = target.substring(0, target.length - 1);
+    }
+    if (validateCode(target)) {
+      return target;
+    }
+  }
+  return null;
+}
+
+/**
  * Retrieves the official description of a code
  */
 export function getDescription(code: string): string {

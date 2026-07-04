@@ -2,6 +2,7 @@ import { PreAuthRecord } from '../components/PreAuthWizard/types';
 import { getReasoningFromMedGemma, LlmReasoningOutput } from '../services/llmClient';
 import { checkMandatoryGaps } from '../config/mandatoryItems';
 import { validateCode } from '../services/icdService';
+import { CLINICAL_SYNONYMS } from '../config/clinicalSynonyms';
 
 
 export interface EvidenceReviewReport {
@@ -84,13 +85,14 @@ export const checkDiagnosisCoding = (record: Partial<PreAuthRecord>): string[] =
  */
 export const isNegated = (term: string, narrative: string): boolean => {
   const cleanTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '\\s*[-]?\\s*');
+  const suffix = /\w$/.test(cleanTerm) ? '(?:s|es)?' : '';
   
   // 1. Negation word BEFORE the term (within 25 chars, not crossing sentence boundaries)
-  const regexBefore = new RegExp(`\\b(?:no|not|nil|missing|without|none|n/a|na|pending|absent|lack of)\\b[^.!?]{0,25}?\\b${cleanTerm}\\b`, 'i');
+  const regexBefore = new RegExp(`\\b(?:no|not|nil|missing|without|none|n/a|na|pending|absent|lack of)\\b[^.!?]{0,25}?\\b${cleanTerm}${suffix}\\b`, 'i');
   if (regexBefore.test(narrative)) return true;
 
   // 2. Negation word AFTER the term (within 25 chars, not crossing sentence boundaries)
-  const regexAfter = new RegExp(`\\b${cleanTerm}\\b[^.!?]{0,25}?\\b(?:not\\s+(?:documented|available|done|present)|missing|pending|nil|none|n/a|na|absent)\\b`, 'i');
+  const regexAfter = new RegExp(`\\b${cleanTerm}${suffix}\\b[^.!?]{0,25}?\\b(?:not\\s+(?:documented|available|done|present)|missing|pending|nil|none|n/a|na|absent)\\b`, 'i');
   if (regexAfter.test(narrative)) return true;
 
   return false;
@@ -101,7 +103,8 @@ export const isNegated = (term: string, narrative: string): boolean => {
  */
 export const hasWord = (term: string, narrative: string): boolean => {
   const cleanTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/-/g, '\\s*[-]?\\s*');
-  const regex = new RegExp(`\\b${cleanTerm}\\b`, 'i');
+  const suffix = /\w$/.test(cleanTerm) ? '(?:s|es)?' : '';
+  const regex = new RegExp(`\\b${cleanTerm}${suffix}\\b`, 'i');
   return regex.test(narrative);
 };
 
@@ -175,95 +178,13 @@ export const checkClinicalPresence = (item: string, record: Partial<PreAuthRecor
   // 5. Alias Expansion & Semantic Matching
   const searchTerms = [itemLower];
 
-  if (itemLower.includes('wbc') || itemLower.includes('leukocyte') || itemLower.includes('white blood cell')) {
-    searchTerms.push('wbc', 'tc', 'leukocyte', 'count', 'cells');
-  }
-  if (itemLower.includes('surgeon\'s note') || itemLower.includes('surgeon note') || itemLower.includes('indication for')) {
-    searchTerms.push('surgeon', 'consult', 'advised', 'planned', 'indicated', 'recommend', 'advised surgery');
-  }
-  if (itemLower.includes('x-ray') || itemLower.includes('xray') || itemLower.includes('cxr')) {
-    searchTerms.push('x-ray', 'xray', 'cxr', 'chest film', 'infiltrate', 'consolidation');
-  }
-  if (itemLower.includes('ultrasound') || itemLower.includes('usg') || itemLower.includes('sonography')) {
-    searchTerms.push('usg', 'ultrasound', 'scan', 'sono', 'echo');
-  }
-  if (itemLower.includes('mri') || itemLower.includes('magnetic resonance')) {
-    searchTerms.push('mri', 'scan', 'neuroimaging');
-  }
-  if (itemLower.includes('ct ') || itemLower.includes('computed tomography')) {
-    searchTerms.push('ct', 'scan', 'computed');
-  }
-  if (itemLower.includes('residual') || itemLower.includes('pvr')) {
-    searchTerms.push('residual', 'pvr', 'urine', 'void');
-  }
-  if (itemLower.includes('ipss')) {
-    searchTerms.push('ipss', 'score', 'symptom', 'index');
-  }
-  if (itemLower.includes('biopsy') || itemLower.includes('histopath')) {
-    searchTerms.push('biopsy', 'histopath', 'pathology', 'report', 'tissue', 'malignant', 'cancer', 'carcinoma');
-  }
-  if (itemLower.includes('staging')) {
-    searchTerms.push('stage', 'staging', 't1', 't2', 't3', 't4', 'n1', 'n2', 'n3', 'm0', 'm1', 'metastasis');
-  }
-  if (itemLower.includes('plan sheet')) {
-    searchTerms.push('plan', 'sheet', 'protocol', 'cycle', 'chemo', 'regimen');
-  }
-  if (itemLower.includes('audiometry')) {
-    searchTerms.push('audiometry', 'audiogram', 'hearing', 'loss', 'db');
-  }
-  if (itemLower.includes('fundoscopy') || itemLower.includes('acuity')) {
-    searchTerms.push('vision', 'acuity', 'fundus', 'eye', 'cataract', 'slit');
-  }
-  if (itemLower.includes('creatinine') || itemLower.includes('egfr') || itemLower.includes('urea')) {
-    searchTerms.push('creatinine', 'egfr', 'urea', 'kidney', 'renal', 'scr', 'bun');
-  }
-  if (itemLower.includes('spo2') || itemLower.includes('oxygen') || itemLower.includes('hypoxia')) {
-    searchTerms.push('spo2', 'oxygen', 'o2', 'hypoxia', 'saturation', 'room air');
-  }
-  if (itemLower.includes('abg') || itemLower.includes('blood gas')) {
-    searchTerms.push('abg', 'ph', 'pco2', 'po2', 'hco3', 'blood gas');
-  }
-  if (itemLower.includes('pefr') || itemLower.includes('peak flow')) {
-    searchTerms.push('pefr', 'peak', 'flow', 'spirometry', 'pft');
-  }
-  if (itemLower.includes('amylase') || itemLower.includes('lipase')) {
-    searchTerms.push('amylase', 'lipase', 'enzyme', 'pancreas');
-  }
-  if (itemLower.includes('widal') || itemLower.includes('culture')) {
-    searchTerms.push('widal', 'culture', 'typhi', 'salmonella', 'blood');
-  }
-  if (itemLower.includes('emg') || itemLower.includes('ncs') || itemLower.includes('conduction')) {
-    searchTerms.push('emg', 'ncs', 'nerve', 'conduction', 'velocity');
-  }
-  if (itemLower.includes('electrocardiogram') || itemLower.includes('ecg')) {
-    searchTerms.push('ecg', 'ekg', 'electrocardiogram', 'lead');
-  }
-  if (itemLower.includes('imaging') || itemLower.includes('scan')) {
-    searchTerms.push('imaging', 'scan', 'usg', 'ultrasound', 'ct', 'mri', 'x-ray', 'xray', 'cxr', 'sonography', 'echo');
-  }
-  if (itemLower.includes('nsaid') || itemLower.includes('prescription') || itemLower.includes('refill') || itemLower.includes('medication')) {
-    searchTerms.push('medication', 'nsaid', 'analgesic', 'tablet', 'drug', 'prescription', 'physio', 'conservative', 'painkiller', 'pain killer', 'oral medications');
-  }
-  if (itemLower.includes('pessary')) {
-    searchTerms.push('pessary', 'ring', 'conservative', 'management', 'support');
-  }
-  if (itemLower.includes('doppler') || itemLower.includes('vascular') || itemLower.includes('grade')) {
-    searchTerms.push('doppler', 'vascular', 'abi', 'arterial', 'duplex', 'flow', 'grade', 'wagner', 'stage', 'depth');
-  }
-  if (itemLower.includes('hb') || itemLower.includes('hemoglobin') || itemLower.includes('hgb')) {
-    searchTerms.push('hb', 'hemoglobin', 'hgb');
-  }
-  if (itemLower.includes('tenecteplase') || itemLower.includes('thrombolysis') || itemLower.includes('alteplase')) {
-    searchTerms.push('tenecteplase', 'thrombolysis', 'alteplase', 'thrombolytic');
-  }
-  if (itemLower.includes('troponin') || itemLower.includes('trop')) {
-    searchTerms.push('troponin', 'trop');
-  }
-  if (itemLower.includes('ns1')) {
-    searchTerms.push('ns1');
-  }
-  if (itemLower.includes('petechiae') || itemLower.includes('rash')) {
-    searchTerms.push('petechiae', 'petechial', 'rash');
+  // Load from editable synonym configuration (bidirectional key/synonym checking)
+  const matchedGroups = CLINICAL_SYNONYMS.filter(group => 
+    group.keys.some(key => itemLower.includes(key.toLowerCase()) || key.toLowerCase().includes(itemLower)) ||
+    group.synonyms.some(syn => itemLower.includes(syn.toLowerCase()) || syn.toLowerCase().includes(itemLower))
+  );
+  for (const group of matchedGroups) {
+    searchTerms.push(...group.synonyms);
   }
 
   // If any search term is present in narrative (and not negated), return true
@@ -319,6 +240,27 @@ export const getFallbackReasoning = (diagnosisName: string): LlmReasoningOutput 
           challenge: 'is the stated diagnosis actually supported by the documented findings?',
           evidence: 'Chest X-ray report confirming infiltrate',
           reason: 'To verify diagnosis meets clinical diagnostic criteria.'
+        }
+      ]
+    };
+  }
+
+  if (dxLower.includes('dialysis') || dxLower.includes('ckd') || dxLower.includes('renal failure') || dxLower.includes('hemodialysis') || dxLower.includes('haemodialysis')) {
+    return {
+      challengesConsidered: [
+        'could this be a pre-existing condition?',
+        'is the stated diagnosis actually supported by the documented findings?'
+      ],
+      anchors: [
+        'creatinine',
+        'urea',
+        'eGFR'
+      ],
+      discriminators: [
+        {
+          challenge: 'is the stated diagnosis actually supported by the documented findings?',
+          evidence: 'renal function test report or nephrologist referral',
+          reason: 'To confirm chronic kidney disease severity and dialysis requirement.'
         }
       ]
     };
@@ -502,6 +444,10 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
     const hasRenalLabs = checkClinicalPresence('creatinine', record) || checkClinicalPresence('urea', record) || checkClinicalPresence('egfr', record);
     if (!hasRenalLabs) {
       extraAnchors.push('creatinine', 'urea', 'eGFR');
+    }
+    // DJ stenting / ureteral issues may also need stone size + imaging
+    if (dxLower.includes('dj stent') || dxLower.includes('ureter')) {
+      if (!hasImaging) extraAnchors.push('imaging', 'USG', 'CT');
     }
   }
   // Neurology
@@ -709,6 +655,66 @@ export const reviewEvidence = async (record: Partial<PreAuthRecord>): Promise<Ev
       severity: 'high',
       source: 'rule'
     });
+  }
+
+  // Bug Fix: Rule #7 — OPD MEDICAL NECESSITY CHALLENGE (for non-surgical medical conditions)
+  // The existing conservative-management rule only fires for elective surgical cases (TKR, spine).
+  // The audit found the engine NEVER challenged medical necessity for conditions like Dengue,
+  // Typhoid, Acute Gastroenteritis, and Viral Fever — where the #1 TPA rejection reason is
+  // "could be managed as OPD" when vitals are stable.
+  const isMedicalAdmissionCondition = (dx: string): boolean => {
+    const d = dx.toLowerCase();
+    // Exclude CKD/Dialysis — maintenance dialysis is ALWAYS medically necessary inpatient
+    // Exclude Dengue with thrombocytopenia — severe dengue with low platelets IS inpatient
+    const isExcluded = d.includes('dialysis') || d.includes('ckd') || d.includes('renal failure') ||
+                       d.includes('haemodialysis') || d.includes('hemodialysis');
+    if (isExcluded) return false;
+    return d.includes('typhoid') || d.includes('enteric fever') ||
+           d.includes('gastroenteritis') || d.includes('viral fever') ||
+           d.includes('acute gastro') || d.includes('loose stools') || d.includes('food poisoning') ||
+           // Dengue only if it's a mild/non-warning presentation (no thrombocytopenia mentioned)
+           (d.includes('dengue') && !d.includes('dengue hemorrhagic') && !d.includes('dengue shock'));
+  };
+
+  if (isMedicalAdmissionCondition(diagnosis)) {
+    // Check if vitals suggest stability (no obvious emergency)
+    const vitals = record.clinical?.vitals;
+    const spo2 = vitals?.spo2 ? parseInt(vitals.spo2, 10) : null;
+    const pulse = vitals?.pulse ? parseInt(vitals.pulse, 10) : null;
+    const bp = vitals?.bp || '';
+    const systolic = bp ? parseInt(bp.split('/')[0], 10) : null;
+
+    // Stable: SpO2 >= 95, Pulse < 110, SBP >= 90
+    const vitalsStable = (
+      (spo2 === null || spo2 >= 95) &&
+      (pulse === null || pulse < 110) &&
+      (systolic === null || systolic >= 90)
+    );
+
+    // Also check clinical findings for severity markers (thrombocytopenia, AKI, impending signs)
+    const clinicalFindings = (record.clinical?.relevantClinicalFindings || '').toLowerCase();
+    const hasSeverityMarkers = clinicalFindings.includes('thrombocytopenia') ||
+      clinicalFindings.includes('platelet') || clinicalFindings.includes('aki') ||
+      clinicalFindings.includes('acute kidney') || clinicalFindings.includes('impending') ||
+      clinicalFindings.includes('warning sign') || clinicalFindings.includes('severe dehydration') ||
+      clinicalFindings.includes('hypotension') || clinicalFindings.includes('bleeding');
+
+    // Check if reason for hospitalisation is weak (patient preference, observation)
+    const reasonLower = (record.clinical?.reasonForHospitalisation || '').toLowerCase();
+    const weakReason = reasonLower.includes('prefer') || reasonLower.includes('want') ||
+      reasonLower.includes('observation') || reasonLower.includes('monitoring') ||
+      reasonLower.includes('iv fluids') || reasonLower.includes('iv antibiotic') ||
+      reasonLower === '';
+
+    if (vitalsStable && weakReason && !hasSeverityMarkers) {
+      anticipatedQueries.push({
+        query: "Provide objective clinical documentation establishing that inpatient admission is medically necessary. Documented vitals appear stable. Specify findings that preclude safe outpatient/OPD management (e.g., severe dehydration with AKI, hemodynamic instability, impending warning signs, or failed trial of oral medications).",
+        reason: "Documented vitals are stable and the reason for hospitalization does not demonstrate acute medical necessity. The most common TPA rejection reason for this condition is that it is OPD-manageable.",
+        relatedChallenge: "could this be managed as OPD?",
+        severity: 'high',
+        source: 'rule'
+      });
+    }
   }
 
   // 3. BILATERAL / SAME-SITTING
