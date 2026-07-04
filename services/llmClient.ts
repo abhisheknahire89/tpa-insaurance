@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { DEMO_FALLBACKS } from '../data/demoFallbacks';
-
-const OLLAMA_URL = 'http://localhost:11434/v1/chat/completions';
+import { getGoogleGenAIClient } from './apiKeys';
+import { MODEL_TEXT } from '../config/modelConfig';
 
 export interface LlmReasoningOutput {
   challengesConsidered: string[];
@@ -19,41 +19,64 @@ export function setMockQuery(fn: typeof mockQueryOverride) {
   mockQueryOverride = fn;
 }
 
+/**
+ * Queries the MedGemma LLM.
+ * If VITE_MEDGEMMA_ENDPOINT_URL is set, queries the specified custom endpoint (e.g. Vertex AI or Ollama).
+ * Otherwise, falls back to the main Gemini model (MODEL_TEXT) from config.
+ */
 export async function queryMedGemma(prompt: string, systemInstruction?: string): Promise<string> {
   if (mockQueryOverride) {
     return mockQueryOverride(prompt, systemInstruction);
   }
-  let attempts = 2;
-  let lastError: any = null;
 
-  while (attempts > 0) {
-    try {
-      const response = await axios.post(OLLAMA_URL, {
-        model: 'medgemma:4b',
-        messages: [
-          ...(systemInstruction ? [{ role: 'system', content: systemInstruction }] : []),
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        stream: false
-      }, {
-        timeout: 15000 // 15 seconds timeout
-      });
+  const endpointUrl = (import.meta as any).env?.VITE_MEDGEMMA_ENDPOINT_URL || process.env.VITE_MEDGEMMA_ENDPOINT_URL;
 
-      if (response.data?.choices?.[0]?.message?.content) {
-        return response.data.choices[0].message.content.trim();
-      }
-      throw new Error('Malformed response structure from local LLM');
-    } catch (error: any) {
-      attempts--;
-      lastError = error;
-      console.warn(`[llmClient] Local LLM call failed (attempts remaining: ${attempts}): ${error.message}`);
-      if (attempts === 0) {
-        break;
+  if (endpointUrl) {
+    // Dedicated MedGemma endpoint URL is set (e.g. custom GPU VM, Ollama container, or Vertex AI Model Garden).
+    // Note: Deploying an always-on Vertex AI Model Garden MedGemma endpoint costs ongoing GPU time and is a deliberate upgrade path for production.
+    let attempts = 2;
+    let lastError: any = null;
+
+    while (attempts > 0) {
+      try {
+        const response = await axios.post(endpointUrl, {
+          model: 'medgemma:4b',
+          messages: [
+            ...(systemInstruction ? [{ role: 'system', content: systemInstruction }] : []),
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.1,
+          stream: false
+        }, {
+          timeout: 15000 // 15 seconds timeout
+        });
+
+        if (response.data?.choices?.[0]?.message?.content) {
+          return response.data.choices[0].message.content.trim();
+        }
+        throw new Error('Malformed response structure from MedGemma endpoint');
+      } catch (error: any) {
+        attempts--;
+        lastError = error;
+        console.warn(`[llmClient] Custom MedGemma endpoint call failed (attempts remaining: ${attempts}): ${error.message}`);
       }
     }
+    throw new Error(`Failed to query custom MedGemma endpoint after all attempts: ${lastError?.message || 'Unknown error'}`);
+  } else {
+    // Fall back to Gemini reasoning client if no dedicated MedGemma endpoint is active
+    try {
+      const ai = getGoogleGenAIClient();
+      const response = await ai.models.generateContent({
+        model: MODEL_TEXT,
+        contents: prompt,
+        config: { systemInstruction }
+      });
+      return response.text || '';
+    } catch (error: any) {
+      console.error("[llmClient] Gemini fallback for MedGemma failed:", error);
+      throw new Error(`MedGemma fallback to Gemini failed: ${error.message}`);
+    }
   }
-  throw new Error(`Failed to query local LLM after all attempts: ${lastError?.message || 'Unknown error'}`);
 }
 
 let mockOverride: ((diagnosis: string, admissionType: string, clinicalNarrative: string) => Promise<LlmReasoningOutput>) | null = null;
@@ -79,6 +102,14 @@ export async function getReasoningFromMedGemma(
     demoKey = 'pneumonia';
   } else if (lowerDx.includes('appendicitis')) {
     demoKey = 'appendicitis';
+  }
+
+  const isDemoMode = (import.meta as any).env?.VITE_DEMO_MODE === 'true' || process.env.VITE_DEMO_MODE === 'true';
+
+  // Return canned demo feedback immediately if explicitly in demo mode
+  if (isDemoMode && demoKey) {
+    console.log(`[llmClient] Demo mode active. Returning pre-captured demo fallback for ${demoKey}.`);
+    return DEMO_FALLBACKS[demoKey];
   }
 
   const systemInstruction = `You are an experienced TPA (Third Party Administrator) senior medical reviewer conducting a pre-authorization documentation sufficiency audit. Your role is to assess whether the clinical note adequately justifies the hospitalization and stated diagnosis from a reviewer's perspective — NOT to suggest a diagnosis or treatment.
@@ -151,21 +182,10 @@ Apply the five-stage NEXUS protocol internally, then output ONLY the raw JSON. R
 
   let responseText = '';
   try {
-    if (demoKey) {
-      // Race local model call with a 2-second timeout to ensure the demo is highly responsive
-      const timeoutPromise = new Promise<string>((_, reject) =>
-        setTimeout(() => reject(new Error('Local model query timeout')), 2000)
-      );
-      responseText = await Promise.race([
-        queryMedGemma(prompt, systemInstruction),
-        timeoutPromise
-      ]);
-    } else {
-      responseText = await queryMedGemma(prompt, systemInstruction);
-    }
+    responseText = await queryMedGemma(prompt, systemInstruction);
   } catch (error: any) {
-    if (demoKey) {
-      console.warn(`[llmClient] Local model call failed/timed out: ${error.message}. Using pre-captured demo fallback for ${demoKey}.`);
+    if (isDemoMode && demoKey) {
+      console.warn(`[llmClient] MedGemma query failed: ${error.message}. Returning pre-captured demo fallback for ${demoKey}.`);
       return DEMO_FALLBACKS[demoKey];
     }
     throw error;
@@ -194,8 +214,8 @@ Apply the five-stage NEXUS protocol internally, then output ONLY the raw JSON. R
     }
     throw new Error("Parsed JSON structure does not match expected schema");
   } catch (error) {
-    if (demoKey) {
-      console.warn(`[llmClient] Failed to parse model output as JSON. Using pre-captured demo fallback for ${demoKey}.`);
+    if (isDemoMode && demoKey) {
+      console.warn(`[llmClient] Failed to parse model output as JSON. Returning pre-captured demo fallback for ${demoKey}.`);
       return DEMO_FALLBACKS[demoKey];
     }
     console.error("[llmClient] Failed to parse model output as JSON. Raw output:", responseText);

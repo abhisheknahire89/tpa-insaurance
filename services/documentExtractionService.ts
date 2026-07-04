@@ -23,6 +23,7 @@ export interface ExtractedPatientData {
     // Computed fields
     extracted_fields: string[];
     missing_fields: string[];
+    clinical_excerpts?: string[];
 }
 
 const EXTRACTION_PROMPT = `
@@ -49,7 +50,11 @@ Return ONLY valid JSON (no markdown formatting, no \`\`\`json block) in this exa
     "member_id": "Member/Employee ID or null"
   },
   "confidence": "0-100 number",
-  "notes": "Any issues or unclear text"
+  "notes": "Any issues or unclear text",
+  "clinical_excerpts": [
+    "verbatim clinical quote or clinical finding 1",
+    "verbatim clinical quote or clinical finding 2"
+  ]
 }
 
 If a field is not visible, missing, or unclear, return strictly null for that field. Do not make up information.
@@ -79,7 +84,65 @@ function computeExtractedMissingFields(data: any): { extracted: string[], missin
     return { extracted, missing };
 }
 
+function getPreCachedExcerpts(fileName: string): string[] {
+    const nameLower = fileName.toLowerCase();
+    if (nameLower.includes('gluc') || nameLower.includes('diabet')) {
+        return [
+            'Blood sugar values: fasting blood glucose is 280 mg/dL and post-prandial blood glucose is 380 mg/dL.',
+            'Urine ketones: negative. ECG: Normal.',
+            'High blood sugar noted during home tests. Advising emergency glycemic control and stabilization of blood glucose levels.',
+            'Patient complains of polyuria and polydipsia for 3 days.'
+        ];
+    }
+    if (nameLower.includes('ultrasound') || nameLower.includes('pneumonia')) {
+        return [
+            'Cough and high fever noticed recently. Chest crackles present.',
+            'Clinical presentation of fever and productive cough. Advised admission for antibiotic course.',
+            'Cough and high fever for 3 days.'
+        ];
+    }
+    if (nameLower.includes('cbc') || nameLower.includes('appendicitis')) {
+        return [
+            'Appendicitis suspected. RLQ tender.',
+            'Presented with RLQ tenderness. Suspected acute appendicitis.',
+            'RLQ pain for 1 day.'
+        ];
+    }
+    return [];
+}
+
+import { MODEL_DOCUMENT } from '../config/modelConfig';
+
 export const extractFromDocument = async (file: File): Promise<ExtractedPatientData> => {
+    // Check if we have a demo document or fallback mode is set
+    const hasDemoDoc = file.name.toLowerCase().includes('demo') ||
+        file.name.toLowerCase().includes('report') ||
+        file.name.toLowerCase().includes('gluc') ||
+        file.name.toLowerCase().includes('ultrasound') ||
+        file.name.toLowerCase().includes('cbc');
+
+    const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+
+    if (isDemoMode && hasDemoDoc) {
+        console.log("[documentExtractionService] Returning pre-cached demo excerpts and data.");
+        const excerpts = getPreCachedExcerpts(file.name);
+        const isGluc = file.name.includes('gluc');
+        const isCbc = file.name.includes('cbc');
+        const { extracted, missing } = computeExtractedMissingFields({
+            patient: { name: 'Abhishek Nahire', age: 28, gender: 'Male' },
+            insurance: { policy_number: 'POL-123456', insurance_company: 'Star Health', sum_insured: 500000 }
+        });
+        return {
+            document_type: isGluc ? 'policy_document' : 'unknown',
+            patient: { name: 'Abhishek Nahire', age: 28, gender: 'Male' },
+            insurance: { policy_number: 'POL-123456', insurance_company: 'Star Health', sum_insured: 500000 },
+            confidence: 99,
+            extracted_fields: extracted,
+            missing_fields: missing,
+            clinical_excerpts: excerpts
+        };
+    }
+
     let attempts = 3;
     let lastError: any = null;
 
@@ -111,7 +174,7 @@ export const extractFromDocument = async (file: File): Promise<ExtractedPatientD
     while (attempts > 0) {
         try {
             const client = getGoogleGenerativeAIClient();
-            const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const model = client.getGenerativeModel({ model: MODEL_DOCUMENT });
 
             const result = await model.generateContent([EXTRACTION_PROMPT, ...imageParts]);
             const responseText = result.response.text().trim();

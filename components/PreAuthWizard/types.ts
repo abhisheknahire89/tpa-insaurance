@@ -8,8 +8,12 @@ export type PreAuthStatus =
     | 'ready_to_submit'
     | 'submitted'
     | 'query_raised'
+    /** TPA received a response to their query — awaiting final decision */
+    | 'query_received'
     | 'approved'
     | 'denied'
+    /** AI-generated citation-backed appeal is ready to submit */
+    | 'appeal_drafted'
     | 'enhancement_requested'
     | 'closed';
 

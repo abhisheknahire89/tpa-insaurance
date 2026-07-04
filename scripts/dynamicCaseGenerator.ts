@@ -1,14 +1,9 @@
-import { GoogleGenAI } from '@google/genai';
+import { getGoogleGenAIClient } from '../services/apiKeys';
+import { MODEL_TEXT } from '../config/modelConfig';
 import { GroundedTestCase } from './groundedBattery';
 
-export async function generateBatchWithGemini(count: number = 20, modelName: string = 'gemini-2.5-pro'): Promise<GroundedTestCase[] | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('[DynamicCaseGenerator] GEMINI_API_KEY not found. Cannot generate dynamic cases.');
-    return null;
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+export async function generateBatchWithGemini(count: number = 20, modelName: string = MODEL_TEXT): Promise<GroundedTestCase[] | null> {
+  const ai = getGoogleGenAIClient();
 
   const prompt = `
 You are a highly experienced Indian clinical documentation specialist and TPA claims expert.

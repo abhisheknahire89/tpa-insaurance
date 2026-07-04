@@ -3,8 +3,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { DoctorProfile, TranscriptEntry } from '../types';
 
-// FIX: Updated to the correct native audio preview model name
-const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
+import { MODEL_AUDIO } from '../config/modelConfig';
+import { getGoogleGenAIClient } from '../services/apiKeys';
+
+const MODEL_NAME = MODEL_AUDIO;
 
 function decode(base64: string) {
   const binaryString = atob(base64);
@@ -55,7 +57,7 @@ export const useVedaSession = (doctorProfile: DoctorProfile, language: string) =
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   
-  const ai = new GoogleGenAI({ apiKey: ((import.meta as any).env?.VITE_GEMINI_API_KEY || '') });
+  const ai = getGoogleGenAIClient();
 
   const stopSession = useCallback(() => {
     if (sessionRef.current) {

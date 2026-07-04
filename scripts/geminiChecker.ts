@@ -1,4 +1,5 @@
-import { GoogleGenAI } from '@google/genai';
+import { getGoogleGenAIClient } from '../services/apiKeys';
+import { MODEL_TEXT } from '../config/modelConfig';
 import { TestCase } from './testBattery';
 
 export interface GeminiVerdict {
@@ -17,15 +18,9 @@ export async function checkCaseWithGemini(
   caseInput: TestCase,
   engineOutput: any,
   iteration: number,
-  modelName: string = 'gemini-2.5-flash'
+  modelName: string = MODEL_TEXT
 ): Promise<GeminiVerdict | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('[GeminiChecker] GEMINI_API_KEY not found in environment. Skipping Gemini check.');
-    return null;
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getGoogleGenAIClient();
 
   const prompt = `
 You are an independent clinical and technical auditor evaluating an AI insurance evidence engine.

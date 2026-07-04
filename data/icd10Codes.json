@@ -67880,6 +67880,571 @@
       "code": "Z98.3",
       "description": "Post therapeutic collapse of lung status",
       "category": "Z98"
+    },
+    {
+      "code": "J15.211",
+      "description": "Pneumonia due to methicillin susceptible Staphylococcus aureus",
+      "category": "J15"
+    },
+    {
+      "code": "J96.00",
+      "description": "Acute respiratory failure, unspecified whether with hypoxia or hypercapnia",
+      "category": "J96"
+    },
+    {
+      "code": "J45.51",
+      "description": "Severe persistent asthma with acute exacerbation",
+      "category": "J45"
+    },
+    {
+      "code": "J45.41",
+      "description": "Moderate persistent asthma with acute exacerbation",
+      "category": "J45"
+    },
+    {
+      "code": "J45.901",
+      "description": "Unspecified asthma with acute exacerbation",
+      "category": "J45"
+    },
+    {
+      "code": "J96.01",
+      "description": "Acute respiratory failure with hypoxia",
+      "category": "J96"
+    },
+    {
+      "code": "J93.11",
+      "description": "Primary spontaneous pneumothorax",
+      "category": "J93"
+    },
+    {
+      "code": "C34.90",
+      "description": "Malignant neoplasm of unspecified part of bronchus or lung, unspecified side",
+      "category": "C34"
+    },
+    {
+      "code": "I26.99",
+      "description": "Other pulmonary embolism without acute cor pulmonale",
+      "category": "I26"
+    },
+    {
+      "code": "J05.10",
+      "description": "Acute epiglottitis without obstruction",
+      "category": "J05"
+    },
+    {
+      "code": "G47.33",
+      "description": "Obstructive sleep apnea (adult) (pediatric)",
+      "category": "G47"
+    },
+    {
+      "code": "I21.09",
+      "description": "ST elevation MI of other coronary artery of anterior wall",
+      "category": "I21"
+    },
+    {
+      "code": "I21.19",
+      "description": "ST elevation MI of other coronary artery of inferior wall",
+      "category": "I21"
+    },
+    {
+      "code": "I21.A1",
+      "description": "AMI due to left anterior descending coronary artery",
+      "category": "I21"
+    },
+    {
+      "code": "I50.21",
+      "description": "Acute systolic (congestive) heart failure",
+      "category": "I50"
+    },
+    {
+      "code": "I50.31",
+      "description": "Acute diastolic (congestive) heart failure",
+      "category": "I50"
+    },
+    {
+      "code": "I50.41",
+      "description": "Acute combined systolic and diastolic heart failure",
+      "category": "I50"
+    },
+    {
+      "code": "I48.91",
+      "description": "Unspecified atrial fibrillation",
+      "category": "I48"
+    },
+    {
+      "code": "I48.11",
+      "description": "Longstanding persistent atrial fibrillation",
+      "category": "I48"
+    },
+    {
+      "code": "I48.19",
+      "description": "Other persistent atrial fibrillation",
+      "category": "I48"
+    },
+    {
+      "code": "I09.81",
+      "description": "Rheumatic heart failure",
+      "category": "I09"
+    },
+    {
+      "code": "I82.401",
+      "description": "Acute embolism and thrombosis of unspecified femoral vein",
+      "category": "I82"
+    },
+    {
+      "code": "I63.10",
+      "description": "Cerebral infarction due to embolism of unspecified precerebral artery",
+      "category": "I63"
+    },
+    {
+      "code": "I63.40",
+      "description": "Cerebral infarction due to embolism of unspecified cerebral artery",
+      "category": "I63"
+    },
+    {
+      "code": "I63.00",
+      "description": "Cerebral infarction due to thrombosis of unspecified precerebral artery",
+      "category": "I63"
+    },
+    {
+      "code": "G70.01",
+      "description": "Myasthenia gravis with (acute) exacerbation",
+      "category": "G70"
+    },
+    {
+      "code": "S06.4X0A",
+      "description": "Epidural hemorrhage without loss of consciousness, initial encounter",
+      "category": "S06"
+    },
+    {
+      "code": "S14.109A",
+      "description": "Unspecified injury at unspecified level of cervical spinal cord, initial encounter",
+      "category": "S14"
+    },
+    {
+      "code": "G43.001",
+      "description": "Migraine without aura, intractable, with status migrainosus",
+      "category": "G43"
+    },
+    {
+      "code": "K85.12",
+      "description": "Biliary acute pancreatitis with infected necrosis",
+      "category": "K85"
+    },
+    {
+      "code": "K85.20",
+      "description": "Alcohol induced acute pancreatitis without necrosis or infection",
+      "category": "K85"
+    },
+    {
+      "code": "K85.21",
+      "description": "Alcohol induced acute pancreatitis with uninfected necrosis",
+      "category": "K85"
+    },
+    {
+      "code": "K74.60",
+      "description": "Unspecified cirrhosis of liver",
+      "category": "K74"
+    },
+    {
+      "code": "I85.11",
+      "description": "Secondary esophageal varices with bleeding",
+      "category": "I85"
+    },
+    {
+      "code": "K35.20",
+      "description": "Acute appendicitis with generalized peritonitis, without abscess",
+      "category": "K35"
+    },
+    {
+      "code": "K83.09",
+      "description": "Other cholangitis",
+      "category": "K83"
+    },
+    {
+      "code": "K50.119",
+      "description": "Crohn's disease of small intestine with other complication",
+      "category": "K50"
+    },
+    {
+      "code": "A01.09",
+      "description": "Typhoid fever with other complications",
+      "category": "A01"
+    },
+    {
+      "code": "K56.609",
+      "description": "Other intestinal obstruction, unspecified as to partial versus complete obstruction",
+      "category": "K56"
+    },
+    {
+      "code": "K72.01",
+      "description": "Acute and subacute hepatic failure with coma",
+      "category": "K72"
+    },
+    {
+      "code": "K72.00",
+      "description": "Acute and subacute hepatic failure without coma",
+      "category": "K72"
+    },
+    {
+      "code": "K72.90",
+      "description": "Hepatic failure, unspecified without coma",
+      "category": "K72"
+    },
+    {
+      "code": "K55.059",
+      "description": "Other mesenteric vascular insufficiency",
+      "category": "K55"
+    },
+    {
+      "code": "K51.019",
+      "description": "Ulcerative (chronic) pancolitis with other complication",
+      "category": "K51"
+    },
+    {
+      "code": "T86.11",
+      "description": "Kidney transplant rejection",
+      "category": "T86"
+    },
+    {
+      "code": "E11.65",
+      "description": "Type 2 diabetes mellitus with hyperglycemia",
+      "category": "E11"
+    },
+    {
+      "code": "D59.31",
+      "description": "Hemolytic-uremic syndrome",
+      "category": "D59"
+    },
+    {
+      "code": "E10.10",
+      "description": "Type 1 diabetes mellitus with ketoacidosis without coma",
+      "category": "E10"
+    },
+    {
+      "code": "E10.11",
+      "description": "Type 1 diabetes mellitus with ketoacidosis with coma",
+      "category": "E10"
+    },
+    {
+      "code": "E11.10",
+      "description": "Type 2 diabetes mellitus with ketoacidosis without coma",
+      "category": "E11"
+    },
+    {
+      "code": "E11.11",
+      "description": "Type 2 diabetes mellitus with ketoacidosis with coma",
+      "category": "E11"
+    },
+    {
+      "code": "E11.01",
+      "description": "Type 2 diabetes mellitus with hyperosmolarity with coma",
+      "category": "E11"
+    },
+    {
+      "code": "E11.641",
+      "description": "Type 2 diabetes mellitus with hypoglycemia with coma",
+      "category": "E11"
+    },
+    {
+      "code": "E10.641",
+      "description": "Type 1 diabetes mellitus with hypoglycemia with coma",
+      "category": "E10"
+    },
+    {
+      "code": "E11.649",
+      "description": "Type 2 diabetes mellitus with hypoglycemia without coma",
+      "category": "E11"
+    },
+    {
+      "code": "E11.00",
+      "description": "Type 2 diabetes mellitus with hyperosmolarity without coma",
+      "category": "E11"
+    },
+    {
+      "code": "E05.91",
+      "description": "Thyrotoxicosis, unspecified with thyroid storm",
+      "category": "E05"
+    },
+    {
+      "code": "D35.00",
+      "description": "Benign neoplasm of unspecified adrenal gland",
+      "category": "D35"
+    },
+    {
+      "code": "E11.622",
+      "description": "Type 2 diabetes mellitus with other skin ulcer",
+      "category": "E11"
+    },
+    {
+      "code": "E05.90",
+      "description": "Thyrotoxicosis, unspecified without thyroid storm",
+      "category": "E05"
+    },
+    {
+      "code": "S72.009A",
+      "description": "Fracture of unspecified part of neck of unspecified femur, initial encounter for closed fracture",
+      "category": "S72"
+    },
+    {
+      "code": "S73.006A",
+      "description": "Unspecified dislocation of unspecified hip, initial encounter",
+      "category": "S73"
+    },
+    {
+      "code": "S22.009A",
+      "description": "Fracture of unspecified thoracic vertebra, initial encounter for closed fracture",
+      "category": "S22"
+    },
+    {
+      "code": "S82.201B",
+      "description": "Unspecified fracture of shaft of right tibia, initial encounter for open fracture type I or II",
+      "category": "S82"
+    },
+    {
+      "code": "M84.559A",
+      "description": "Pathological fracture in neoplastic disease, unspecified thigh, initial encounter for fracture",
+      "category": "M84"
+    },
+    {
+      "code": "M51.06",
+      "description": "Intervertebral disc disorders with myelopathy, lumbar region",
+      "category": "M51"
+    },
+    {
+      "code": "S32.509A",
+      "description": "Fracture of unspecified acetabulum, initial encounter for closed fracture",
+      "category": "S32"
+    },
+    {
+      "code": "S43.006A",
+      "description": "Unspecified dislocation of unspecified shoulder joint, initial encounter",
+      "category": "S43"
+    },
+    {
+      "code": "S82.101A",
+      "description": "Unspecified fracture of upper end of right tibia, initial encounter for closed fracture",
+      "category": "S82"
+    },
+    {
+      "code": "Z96.651",
+      "description": "Presence of right artificial knee joint",
+      "category": "Z96"
+    },
+    {
+      "code": "S36.899A",
+      "description": "Other injury of other intraabdominal organs, initial encounter",
+      "category": "S36"
+    },
+    {
+      "code": "T31.30",
+      "description": "Burns involving 30-39% of body surface with 0% to 9% third degree burns",
+      "category": "T31"
+    },
+    {
+      "code": "C50.919",
+      "description": "Malignant neoplasm of unspecified site of unspecified female breast",
+      "category": "C50"
+    },
+    {
+      "code": "L05.91",
+      "description": "Pilonidal sinus without abscess",
+      "category": "L05"
+    },
+    {
+      "code": "T81.449A",
+      "description": "Infection following a procedure, other surgical site, initial encounter",
+      "category": "T81"
+    },
+    {
+      "code": "K40.30",
+      "description": "Unilateral inguinal hernia, without obstruction or gangrene, not specified as recurrent",
+      "category": "K40"
+    },
+    {
+      "code": "O44.13",
+      "description": "Placenta previa with hemorrhage, third trimester",
+      "category": "O44"
+    },
+    {
+      "code": "O00.109",
+      "description": "Unspecified tubal pregnancy without intrauterine pregnancy",
+      "category": "O00"
+    },
+    {
+      "code": "O03.87",
+      "description": "Complete or unspecified spontaneous abortion complicated by sepsis",
+      "category": "O03"
+    },
+    {
+      "code": "O42.119",
+      "description": "Preterm premature rupture of membranes, unspecified, other weeks of gestation",
+      "category": "O42"
+    },
+    {
+      "code": "O24.419",
+      "description": "Gestational diabetes mellitus in pregnancy, unspecified control",
+      "category": "O24"
+    },
+    {
+      "code": "O14.10",
+      "description": "Severe pre-eclampsia, unspecified trimester",
+      "category": "O14"
+    },
+    {
+      "code": "N83.51",
+      "description": "Torsion of ovary and ovarian pedicle",
+      "category": "N83"
+    },
+    {
+      "code": "R56.01",
+      "description": "Complex febrile convulsions",
+      "category": "R56"
+    },
+    {
+      "code": "R65.21",
+      "description": "Severe sepsis with septic shock",
+      "category": "R65"
+    },
+    {
+      "code": "D57.00",
+      "description": "Hb-SS disease with crisis, unspecified",
+      "category": "D57"
+    },
+    {
+      "code": "C85.90",
+      "description": "Non-Hodgkin lymphoma, unspecified, unspecified site",
+      "category": "C85"
+    },
+    {
+      "code": "C92.00",
+      "description": "Acute myeloblastic leukemia, not having achieved remission",
+      "category": "C92"
+    },
+    {
+      "code": "E83.52",
+      "description": "Hypercalcemia",
+      "category": "E83"
+    },
+    {
+      "code": "C79.31",
+      "description": "Secondary malignant neoplasm of brain",
+      "category": "C79"
+    },
+    {
+      "code": "Z51.11",
+      "description": "Encounter for antineoplastic chemotherapy",
+      "category": "Z51"
+    },
+    {
+      "code": "F10.231",
+      "description": "Alcohol dependence with withdrawal delirium",
+      "category": "F10"
+    },
+    {
+      "code": "F11.23",
+      "description": "Opioid dependence with withdrawal",
+      "category": "F11"
+    },
+    {
+      "code": "F19.929",
+      "description": "Other psychoactive substance use, unspecified with intoxication, unspecified",
+      "category": "F19"
+    },
+    {
+      "code": "G25.82",
+      "description": "Stiff-man syndrome",
+      "category": "G25"
+    },
+    {
+      "code": "T07.XXXA",
+      "description": "Unspecified multiple injuries, initial encounter",
+      "category": "T07"
+    },
+    {
+      "code": "T63.004A",
+      "description": "Toxic effect of unspecified snake venom, accidental, initial encounter",
+      "category": "T63"
+    },
+    {
+      "code": "T60.0X1A",
+      "description": "Toxic effect of organophosphate and carbamate insecticides, accidental, initial encounter",
+      "category": "T60"
+    },
+    {
+      "code": "T50.901A",
+      "description": "Poisoning by unspecified drugs and biological substances, accidental, initial encounter",
+      "category": "T50"
+    },
+    {
+      "code": "T67.01XA",
+      "description": "Heatstroke and sunstroke, initial encounter",
+      "category": "T67"
+    },
+    {
+      "code": "T75.1XXA",
+      "description": "Unspecified effects of drowning and nonfatal submersion, initial encounter",
+      "category": "T75"
+    },
+    {
+      "code": "T75.4XXA",
+      "description": "Electrocution, initial encounter",
+      "category": "T75"
+    },
+    {
+      "code": "T79.5XXA",
+      "description": "Traumatic anuria, initial encounter",
+      "category": "T79"
+    },
+    {
+      "code": "T78.2XXA",
+      "description": "Anaphylactic shock, unspecified, initial encounter",
+      "category": "T78"
+    },
+    {
+      "code": "M62.82",
+      "description": "Rhabdomyolysis",
+      "category": "M62"
+    },
+    {
+      "code": "S37.001A",
+      "description": "Unspecified injury of right kidney, initial encounter",
+      "category": "S37"
+    },
+    {
+      "code": "S37.10XA",
+      "description": "Unspecified injury of ureter, initial encounter",
+      "category": "S37"
+    },
+    {
+      "code": "N44.00",
+      "description": "Torsion of testis, unspecified",
+      "category": "N44"
+    },
+    {
+      "code": "N48.30",
+      "description": "Priapism, unspecified",
+      "category": "N48"
+    },
+    {
+      "code": "S37.20XA",
+      "description": "Unspecified injury of bladder, initial encounter",
+      "category": "S37"
+    },
+    {
+      "code": "N35.919",
+      "description": "Unspecified urethral stricture, unspecified",
+      "category": "N35"
+    },
+    {
+      "code": "L03.90",
+      "description": "Cellulitis, unspecified",
+      "category": "L03"
+    },
+    {
+      "code": "L89.90",
+      "description": "Pressure ulcer of unspecified site, unspecified stage",
+      "category": "L89"
     }
   ]
 }

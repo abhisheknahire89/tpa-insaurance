@@ -3,7 +3,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
 
 // FIX: Updated to the correct native audio preview model name
-const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
+import { MODEL_AUDIO } from '../config/modelConfig';
+import { getGoogleGenAIClient } from '../services/apiKeys';
+
+const MODEL_NAME = MODEL_AUDIO;
 
 declare global {
   interface Window {
@@ -64,7 +67,7 @@ export const useSpeechRecognition = (options: { lang?: string } = {}): UseSpeech
   const shouldBeListeningRef = useRef(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const ai = new GoogleGenAI({ apiKey: ((import.meta as any).env?.VITE_GEMINI_API_KEY || '') });
+  const ai = getGoogleGenAIClient();
 
   const cleanup = useCallback(async () => {
     if (isCleaningUpRef.current) return;

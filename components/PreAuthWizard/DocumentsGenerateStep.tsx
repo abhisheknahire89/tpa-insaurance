@@ -6,7 +6,7 @@ import { scoreNecessityStrength } from '../../utils/strengthScorer';
 import { getRequiredDocuments } from '../../utils/documentRequirements';
 import { DEFAULT_DOCTORS } from '../../config/hospitalConfig';
 import { formatFileSize } from '../../utils/formatters';
-import { reviewEvidence, EvidenceReviewReport } from '../../engine/evidenceReview';
+import { priorAuthOrchestrator, ExtendedEvidenceReviewReport as EvidenceReviewReport } from '../../engine/priorAuthWorkflow';
 import { generatePartC, generatePartCText, PartCOutput } from '../../engine/partCGenerator';
 import { logEvent } from '../../utils/auditLog';
 import { validateCode } from '../../services/icdService';
@@ -59,7 +59,7 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
         const fetchReview = async () => {
             setTpaLoading(true);
             try {
-                const report = await reviewEvidence(record);
+                const report = await priorAuthOrchestrator(record.uploadedDocuments || [], record);
                 if (active) {
                     setTpaReport(report);
                     // Generate Part C immediately after evidence review
@@ -1082,29 +1082,73 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
                                     </div>
                                 ) : tpaReport ? (
                                     <div className="space-y-6">
-                                        {/* Aivana Audit Verdict Card */}
+                                        {/* Prior Authorization Decision Card */}
                                         <div className="bg-slate-900/15 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base border ${
-                                                    tpaReport.status === 'sufficient'
+                                                    (tpaReport as any).decision === 'APPROVE'
                                                         ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                        : (tpaReport as any).decision === 'DENY'
+                                                        ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                        : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                                                 }`}>
-                                                    {tpaReport.status === 'sufficient' ? '✓' : '⚠️'}
+                                                    {(tpaReport as any).decision === 'APPROVE' ? '✓' : (tpaReport as any).decision === 'DENY' ? '✗' : '⚠️'}
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Pre-Submission Audit Verdict</h3>
-                                                    <p className={`text-sm font-bold mt-0.5 ${tpaReport.status === 'sufficient' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                        {tpaReport.status === 'sufficient' ? 'SUFFICIENT EVIDENCE' : 'INSUFFICIENT CLINICAL EVIDENCE'}
+                                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Prior Auth AI Recommendation</h3>
+                                                    <p className={`text-sm font-bold mt-0.5 ${
+                                                        (tpaReport as any).decision === 'APPROVE' ? 'text-emerald-400' :
+                                                        (tpaReport as any).decision === 'DENY' ? 'text-rose-400' :
+                                                        'text-amber-400'
+                                                    }`}>
+                                                        {(tpaReport as any).decision === 'APPROVE' ? 'APPROVED' :
+                                                         (tpaReport as any).decision === 'DENY' ? 'DENIED' :
+                                                         'PENDING DOCUMENTATION / DETAILS'}
                                                     </p>
                                                 </div>
                                             </div>
                                             <p className="text-xs text-slate-400 leading-normal font-medium">
-                                                {tpaReport.status === 'sufficient'
+                                                {(tpaReport as any).justification || (tpaReport.status === 'sufficient'
                                                     ? 'The clinical narrative details provide strong backing. Anticipated queries are highly unlikely.'
-                                                    : 'Aivana identified critical evidence gaps that are likely to trigger TPA rejections or query letters.'}
+                                                    : 'Aivana identified critical evidence gaps that are likely to trigger TPA rejections or query letters.')}
                                             </p>
                                         </div>
+
+                                        {/* Policy & Clinical Evidence Highlights (Task 3) */}
+                                        {(tpaReport as any).evidenceHighlights && (tpaReport as any).evidenceHighlights.length > 0 && (
+                                            <div className="bg-slate-900/15 border border-white/5 rounded-2xl p-5 space-y-4 shadow-sm">
+                                                <div className="border-b border-white/5 pb-2.5">
+                                                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Policy & Clinical Evidence Highlights</h3>
+                                                     <p className="text-[10px] text-slate-500 mt-0.5">Verbatim excerpts extracted from uploaded files matching underwriting rules.</p>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    {(tpaReport as any).evidenceHighlights.map((highlight: any, idx: number) => {
+                                                        const isSupports = highlight.supportsOrContradicts === 'supports';
+                                                        return (
+                                                            <div key={idx} className={`border border-white/5 rounded-xl p-4 space-y-3 border-l-4 ${
+                                                                isSupports ? 'border-l-emerald-500 bg-emerald-500/[0.01]' : 'border-l-rose-500 bg-rose-500/[0.01]'
+                                                            }`}>
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${
+                                                                        isSupports ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                                                    }`}>
+                                                                        {isSupports ? 'Supports Admission' : 'Contradicts Admission'}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-mono text-slate-400 truncate max-w-xs">{highlight.sourceDocument}</span>
+                                                                </div>
+                                                                <div className="text-xs font-bold text-white bg-black/20 border border-white/5 rounded-lg p-3 italic leading-relaxed">
+                                                                    "{highlight.excerpt}"
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
+                                                                    <span className="text-slate-500">Rule:</span>
+                                                                    <span className="text-slate-300 font-bold">{highlight.relatedRule}</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Gaps & Queries (The Visible Hero Section) */}
                                         <div className="bg-slate-900/15 border border-white/5 rounded-2xl p-5 space-y-5 shadow-sm">

@@ -16,7 +16,7 @@ import { calculateTotals } from '../../utils/costCalculator';
 import { calculateCost, findConditionByICD } from '../../services/costEstimationService';
 import { classifyCaseComplexity } from '../../utils/complexityClassifier';
 import { todayISO, nowTimeString } from '../../utils/formatters';
-import { reviewEvidence, EvidenceReviewReport } from '../../engine/evidenceReview';
+import { priorAuthOrchestrator, ExtendedEvidenceReviewReport as EvidenceReviewReport } from '../../engine/priorAuthWorkflow';
 import { validateCode, mapToWhoCode, getDescription } from '../../services/icdService';
 
 
@@ -148,12 +148,12 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({
         if (!dx) { setTpaReport(null); return; }
         let active = true;
         setTpaLoading(true);
-        reviewEvidence(record).then(report => {
+        priorAuthOrchestrator(record.uploadedDocuments || [], record).then(report => {
             if (active) { setTpaReport(report); setTpaLoading(false); }
         }).catch(() => { if (active) setTpaLoading(false); });
         return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [record.clinical?.diagnoses, record.clinical?.chiefComplaints, record.clinical?.relevantClinicalFindings]);
+    }, [record.clinical?.diagnoses, record.clinical?.chiefComplaints, record.clinical?.relevantClinicalFindings, record.uploadedDocuments]);
 
     const updateRecord = useCallback(async (partial: Partial<PreAuthRecord>) => {
         const merged = { ...record, ...partial, updatedAt: new Date().toISOString() };
@@ -182,7 +182,7 @@ export const PreAuthWizard: React.FC<PreAuthWizardProps> = ({
         const finalStatus = (record.uploadedDocuments ?? []).length === 0 ? 'pending_documents' : 'ready_to_submit';
         let tpaEvidenceReview = undefined;
         try {
-            tpaEvidenceReview = await reviewEvidence(record);
+            tpaEvidenceReview = await priorAuthOrchestrator(record.uploadedDocuments || [], record);
         } catch (err) {
             console.error("Failed to run TPA audit review on generate:", err);
         }

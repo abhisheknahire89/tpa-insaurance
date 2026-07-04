@@ -156,8 +156,25 @@ export const ClaimReadinessRail: React.FC<ClaimReadinessRailProps> = ({
     const [mobileOpen, setMobileOpen] = useState(false);
 
     const { score, missingItems, hasInvalidICD, docsUploaded, docsRequired, needsManualReview } = computeReadiness(record, tpaReport);
-    const colors = scoreColorClass(score);
-    const statusLine = readinessStatusLine(score, missingItems.length);
+
+    // Merge missingInfo from TPA policy report (Task 3)
+    const allMissingItems = [...missingItems];
+    if (tpaReport && (tpaReport as any).missingInfo) {
+        (tpaReport as any).missingInfo.forEach((info: string) => {
+            if (!allMissingItems.some(item => item.text.includes(info))) {
+                allMissingItems.push({
+                    text: `Policy: ${info}`,
+                    deduction: 10,
+                    step: 4
+                });
+            }
+        });
+    }
+
+    const policyDeductionCount = allMissingItems.length - missingItems.length;
+    const finalScore = Math.max(0, score - (policyDeductionCount * 10));
+    const colors = scoreColorClass(finalScore);
+    const statusLine = readinessStatusLine(finalScore, allMissingItems.length);
 
     // Queries sorted high → medium → low, rules before suggestions
     const queries = [...(tpaReport?.anticipatedQueries ?? [])].sort((a, b) => {
@@ -173,7 +190,7 @@ export const ClaimReadinessRail: React.FC<ClaimReadinessRailProps> = ({
             <div
                 className="rounded-xl p-4 bg-slate-900/15 border border-white/5 flex flex-col items-center gap-3 shadow-md shadow-black/10"
             >
-                <ScoreRing score={score} />
+                <ScoreRing score={finalScore} />
                 {/* Status label */}
                 <span
                     className={`text-[9px] font-bold px-2.5 py-0.5 rounded uppercase tracking-wider ${colors.bg} ${colors.text} border ${colors.border}`}
@@ -242,13 +259,13 @@ export const ClaimReadinessRail: React.FC<ClaimReadinessRailProps> = ({
             </div>
 
             {/* ── Gap Checklist ────────────────────────────────────── */}
-            {missingItems.length > 0 && (
+            {allMissingItems.length > 0 && (
                 <div className="space-y-2">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                         What to Fix
                     </div>
                     <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
-                        {missingItems.slice(0, 8).map((item, idx) => (
+                        {allMissingItems.slice(0, 8).map((item, idx) => (
                             <button
                                 key={idx}
                                 type="button"
@@ -271,9 +288,9 @@ export const ClaimReadinessRail: React.FC<ClaimReadinessRailProps> = ({
                                 </span>
                             </button>
                         ))}
-                        {missingItems.length > 8 && (
+                        {allMissingItems.length > 8 && (
                             <p className="text-[10px] text-center text-slate-500 font-medium">
-                                +{missingItems.length - 8} more items to address
+                                +{allMissingItems.length - 8} more items to address
                             </p>
                         )}
                     </div>
@@ -307,16 +324,16 @@ export const ClaimReadinessRail: React.FC<ClaimReadinessRailProps> = ({
                 <div className="flex items-center gap-2">
                     <span
                         className="text-xs font-bold font-mono"
-                        style={{ color: scoreColorClass(score).stroke }}
+                        style={{ color: scoreColorClass(finalScore).stroke }}
                     >
-                        {score}
+                        {finalScore}
                     </span>
                     <span className="text-xs font-bold text-slate-300">
                         Claim Readiness
                     </span>
-                    {missingItems.length > 0 && (
+                    {allMissingItems.length > 0 && (
                         <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/15">
-                            {missingItems.length} gap{missingItems.length !== 1 ? 's' : ''}
+                            {allMissingItems.length} gap{allMissingItems.length !== 1 ? 's' : ''}
                         </span>
                     )}
                     {needsManualReview && (

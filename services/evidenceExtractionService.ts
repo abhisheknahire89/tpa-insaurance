@@ -1,5 +1,6 @@
 import { WizardDocument, EvidenceSuggestion } from '../components/PreAuthWizard/types';
 import { getGoogleGenerativeAIClient, rotateApiKey, getActiveApiKey } from './apiKeys';
+import { MODEL_DOCUMENT } from '../config/modelConfig';
 
 const EXTRACTION_PROMPT = `
 You are an expert medical billing and coding assistant.
@@ -247,7 +248,7 @@ export const extractSuggestionsFromEvidence = async (
   while (attempts > 0) {
     try {
       const client = getGoogleGenerativeAIClient();
-      const model = client.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = client.getGenerativeModel({ model: MODEL_DOCUMENT });
 
       const result = await model.generateContent([EXTRACTION_PROMPT, ...fileParts]);
       const responseText = result.response.text().trim();

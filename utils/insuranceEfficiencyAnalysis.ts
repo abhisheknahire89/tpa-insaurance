@@ -11,16 +11,11 @@
  * Output: a formatted Markdown report, ready to present to insurance executives.
  */
 
-import { GoogleGenAI } from "@google/genai";
+import { getGoogleGenAIClient } from "../services/apiKeys";
+import { MODEL_TEXT } from "../config/modelConfig";
 
-// ── API client (same key pool as the rest of the app) ─────────────────────────
-const KEYS = [
-  "AQ.Ab8RN6I58AX9Y92cThrTM75S5464Rq_kpf-bFdohTEEldgdA1Q",
-  "AIzaSyDvTMvfKsrqCj9fQ_1oiC8-BmNhyadeTTE",
-];
-let keyIdx = 0;
-function getAI(): GoogleGenAI {
-  return new GoogleGenAI({ apiKey: KEYS[keyIdx % KEYS.length] });
+function getAI(): any {
+  return getGoogleGenAIClient();
 }
 
 // ── Activity-level time model ─────────────────────────────────────────────────
@@ -267,7 +262,7 @@ Rules:
 - Return ONLY valid JSON, no markdown fences`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: MODEL_TEXT,
     contents: prompt,
     config: {
       responseMimeType: 'application/json',

@@ -1,9 +1,11 @@
 import { PreAuthRecord, PatientRecord } from '../components/PreAuthWizard/types';
+import type { DenialAppealResult } from '../engine/denialAppealGenerator';
 import { mapToWhoCode, validateCode, getDescription } from './icdService';
 
 const DB_NAME = 'AivanaInsuranceDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const PREAUTH_STORE = 'preauths';
+const APPEALS_STORE = 'appeals';
 const PATIENT_STORE = 'patients';
 
 let db: IDBDatabase | null = null;
@@ -21,6 +23,10 @@ const openDB = (): Promise<IDBDatabase> => {
             }
             if (!database.objectStoreNames.contains(PATIENT_STORE)) {
                 database.createObjectStore(PATIENT_STORE, { keyPath: 'id' });
+            }
+            // v2: appeal drafts keyed by recordId
+            if (!database.objectStoreNames.contains(APPEALS_STORE)) {
+                database.createObjectStore(APPEALS_STORE, { keyPath: 'recordId' });
             }
         };
     });
@@ -137,6 +143,45 @@ export const searchPatients = async (query: string): Promise<PatientRecord[]> =>
         (p.uhid && p.uhid.toLowerCase().includes(q)) ||
         (p.lastKnownPolicyNumber && p.lastKnownPolicyNumber.toLowerCase().includes(q))
     );
+};
+
+// ---- ID Generation ----
+
+// ---- Appeal Operations ----
+
+export const saveAppeal = async (appeal: DenialAppealResult): Promise<void> => {
+    const database = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction(APPEALS_STORE, 'readwrite');
+        const store = transaction.objectStore(APPEALS_STORE);
+        const req = store.put(appeal);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+    });
+};
+
+export const getAppeal = async (recordId: string): Promise<DenialAppealResult | undefined> => {
+    return tx<DenialAppealResult | undefined>(APPEALS_STORE, 'readonly', store => store.get(recordId));
+};
+
+export const getAllAppeals = async (): Promise<DenialAppealResult[]> => {
+    const database = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction(APPEALS_STORE, 'readonly');
+        const store = transaction.objectStore(APPEALS_STORE);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+    });
+};
+
+export const updateAppealStatus = async (
+    recordId: string,
+    newStatus: DenialAppealResult['appealStatus']
+): Promise<void> => {
+    const existing = await getAppeal(recordId);
+    if (!existing) return;
+    await saveAppeal({ ...existing, appealStatus: newStatus });
 };
 
 // ---- ID Generation ----

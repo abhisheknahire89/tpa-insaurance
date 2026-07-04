@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PreAuthRecord } from '../PreAuthWizard/types';
-import { savePreAuth } from '../../services/storageService';
+import { savePreAuth, getAppeal } from '../../services/storageService';
+import type { DenialAppealResult } from '../../engine/denialAppealGenerator';
 import { StatusBadge } from '../PreAuthDashboard/StatusBadge';
 import { formatDateTime, formatCurrency } from '../../utils/formatters';
 import { logFeedbackEvent } from '../../utils/feedbackLogger';
@@ -18,6 +19,14 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ record, onClose, o
     const [denialReason, setDenialReason] = useState(record.tpaResponse?.denialReason ?? '');
     const [queryDetails, setQueryDetails] = useState(record.tpaResponse?.queryDetails ?? '');
     const [saving, setSaving] = useState(false);
+    const [existingAppeal, setExistingAppeal] = useState<DenialAppealResult | null>(null);
+
+    // Load any existing appeal for this record
+    useEffect(() => {
+        if (record.status === 'denied') {
+            getAppeal(record.id).then(a => setExistingAppeal(a ?? null)).catch(() => {});
+        }
+    }, [record.id, record.status]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -196,6 +205,38 @@ pre{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:9.5pt;lin
                         }} className="w-full py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
                             📤 Mark as Submitted to TPA
                         </button>
+                    )}
+
+                    {/* Appeal Status Card (for denied records) */}
+                    {record.status === 'denied' && (
+                        <div className={`rounded-xl p-4 border space-y-2 ${
+                            existingAppeal ? 'bg-rose-950/20 border-rose-500/15' : 'bg-gray-800/30 border-white/5'
+                        }`}>
+                            <h3 className="font-semibold text-sm text-rose-300">⚖️ Appeal Status</h3>
+                            {existingAppeal ? (
+                                <div className="space-y-1 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                                            existingAppeal.appealStatus === 'resolved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                            existingAppeal.appealStatus === 'submitted' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                            'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                        }`}>
+                                            {existingAppeal.appealStatus}
+                                        </span>
+                                        <span className="text-gray-400">
+                                            {existingAppeal.addressedCount} of {existingAppeal.totalReasons} denial reasons addressed with existing evidence
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500">
+                                        Generated: {new Date(existingAppeal.generatedAt).toLocaleDateString('en-IN')} · Open the Denial Queue to edit or submit.
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-gray-400">
+                                    No appeal generated yet. Use the <strong>Denial Queue</strong> tab in the TPA Center to generate a citation-backed appeal.
+                                </p>
+                            )}
+                        </div>
                     )}
 
                 </div>

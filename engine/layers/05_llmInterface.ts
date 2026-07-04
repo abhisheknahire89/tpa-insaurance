@@ -3,8 +3,8 @@ import { GoogleGenAI } from "@google/genai";
 // FIX: Replaced incorrect type 'ClinicalWorkflowContext' with the correct exported type 'NexusContext'.
 import { NexusContext } from '../types';
 import { constructLlmContent } from './06_reasoningOrchestrator';
-
-const ai = new GoogleGenAI({ apiKey: ((import.meta as any).env?.VITE_GEMINI_API_KEY || '') });
+import { getGoogleGenAIClient } from '../../services/apiKeys';
+import { MODEL_TEXT } from '../../config/modelConfig';
 
 // Layer 05: Foundational LLM Interface (Reasoning Runtime)
 export const queryLlm = async (context: NexusContext): Promise<NexusContext> => {
@@ -12,8 +12,9 @@ export const queryLlm = async (context: NexusContext): Promise<NexusContext> => 
   const contents = constructLlmContent(context);
   
   try {
+    const ai = getGoogleGenAIClient();
     const responseStream = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview', // FIX: Using Gemini 3 for complex clinical reasoning
+      model: MODEL_TEXT,
       contents: contents,
       config: {
         systemInstruction: context.systemInstruction,

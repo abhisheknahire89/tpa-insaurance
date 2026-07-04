@@ -11,9 +11,11 @@ const STATUS_CONFIG: Record<PreAuthStatus, { label: string; color: string; icon:
     pending_documents: { label: 'Pending Docs', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30', icon: '📎' },
     ready_to_submit: { label: 'Ready', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30', icon: '✅' },
     submitted: { label: 'Submitted', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30', icon: '⏳' },
-    query_raised: { label: 'Query', color: 'bg-orange-500/20 text-orange-300 border-orange-500/30', icon: '❓' },
+    query_raised: { label: 'Query Raised', color: 'bg-orange-500/20 text-orange-300 border-orange-500/30', icon: '❓' },
+    query_received: { label: 'Query Received', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30', icon: '📨' },
     approved: { label: 'Approved', color: 'bg-green-500/20 text-green-300 border-green-500/30', icon: '✅' },
     denied: { label: 'Denied', color: 'bg-red-500/20 text-red-300 border-red-500/30', icon: '❌' },
+    appeal_drafted: { label: 'Appeal Drafted', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30', icon: '⚖️' },
     enhancement_requested: { label: 'Enhancement', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30', icon: '📈' },
     closed: { label: 'Closed', color: 'bg-gray-600/20 text-gray-400 border-gray-600/30', icon: '🔒' },
 };

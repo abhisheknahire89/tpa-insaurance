@@ -7,6 +7,7 @@
 
 import { Modality, GenerateContentResponse } from "@google/genai";
 import { getGoogleGenAIClient, rotateApiKey } from './apiKeys';
+import { MODEL_TTS } from '../config/modelConfig';
 
 async function withFallback<T>(operation: (client: any) => Promise<T>): Promise<T> {
     let attempts = 3;
@@ -94,7 +95,7 @@ async function callGeminiTts(body: any): Promise<{ audioContent: string | null }
 
         return await withFallback(async (client) => {
             const response = await client.models.generateContent({
-                 model: "gemini-2.5-flash-preview-tts",
+                 model: MODEL_TTS,
                  contents: [{ parts: [{ text: text }] }],
                  config: {
                     responseModalities: [Modality.AUDIO], 

@@ -1,4 +1,5 @@
 import { getGoogleGenAIClient, rotateApiKey } from './apiKeys';
+import { MODEL_TEXT } from '../config/modelConfig';
 import {
   PatientRecord, InsurancePolicyDetails, ClinicalDetails,
   AdmissionDetails, DiagnosisEntry, WizardVoiceFinding
@@ -91,7 +92,7 @@ export async function parseTranscriptWithGemini(transcript: string): Promise<Voi
     try {
       const client = getGoogleGenAIClient();
       result = await client.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: MODEL_TEXT,
         contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nDoctor's transcript:\n"""\n${transcript}\n"""` }] }],
         config: { temperature: 0.1, responseMimeType: 'application/json' }
       });

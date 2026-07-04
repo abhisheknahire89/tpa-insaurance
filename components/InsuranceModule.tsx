@@ -6,6 +6,11 @@ import { extractInsurancePreAuthData } from '../services/geminiService';
 import { DIABETES_DEMO_RECORD, PNEUMONIA_DEMO_RECORD, APPENDICITIS_DEMO_RECORD } from '../data/demoCases';
 import { reviewEnhancement, EnhancementReviewReport, EnhancementInput, EnhancementTrigger } from '../engine/enhancementReview';
 import { logEvent } from '../utils/auditLog';
+import { PriorAuthCopilot } from './TpaPlatform/PriorAuthCopilot';
+import { DenialHub } from './TpaPlatform/DenialHub';
+import { BillingCoderView } from './TpaPlatform/BillingCoderView';
+import { WorkflowOrchestrator } from './TpaPlatform/WorkflowOrchestrator';
+import { DenialQueue } from './PostSubmission/DenialQueue';
 
 // --- TYPES ---
 
@@ -535,7 +540,8 @@ export const ReimbursementModule: React.FC = () => {
 };
 
 export const InsuranceModule: React.FC = () => {
-    const [activeModule, setActiveModule] = useState<'preauth' | 'enhancement' | 'reimbursement'>('preauth');
+    const [activeModule, setActiveModule] = useState<'preauth' | 'enhancement' | 'reimbursement' | 'tpa_platform'>('preauth');
+    const [tpaSubTab, setTpaSubTab] = useState<'prior_auth' | 'denial' | 'coding' | 'orchestrator'>('prior_auth');
     const [preAuthOutput, setPreAuthOutput] = useState<any>(null); // State passing
 
     // Testing state for isolated environment
@@ -601,26 +607,33 @@ export const InsuranceModule: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 overflow-x-auto pb-2">
                         <button
-                            className={`px-4 py-2 rounded-full text-sm font-bold transition ${activeModule === 'preauth' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                            className={`px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${activeModule === 'preauth' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                             onClick={() => setActiveModule('preauth')}
                         >
                             Step 1: Pre-Auth
                         </button>
                         <div className="self-center hidden sm:block w-4 h-0.5 bg-gray-700"></div>
                         <button
-                            className={`px-4 py-2 rounded-full text-sm font-bold transition ${activeModule === 'enhancement' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                            className={`px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${activeModule === 'enhancement' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                             onClick={() => setActiveModule('enhancement')}
                         >
-                            Step 2: Enhancement
+                            Step 2: Stay Enhancement
                         </button>
                         <div className="self-center hidden sm:block w-4 h-0.5 bg-gray-700"></div>
                         <button
-                            className={`px-4 py-2 rounded-full text-sm font-bold transition ${activeModule === 'reimbursement' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                            className={`px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${activeModule === 'reimbursement' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                             onClick={() => setActiveModule('reimbursement')}
                         >
                             Step 3: Final Claim
+                        </button>
+                        <div className="self-center hidden sm:block w-4 h-0.5 bg-gray-700"></div>
+                        <button
+                            className={`px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap ${activeModule === 'tpa_platform' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                            onClick={() => setActiveModule('tpa_platform')}
+                        >
+                            ⚡ TPA AI Copilot
                         </button>
                     </div>
                 </div>
@@ -816,6 +829,53 @@ export const InsuranceModule: React.FC = () => {
 
                     {activeModule === 'reimbursement' && (
                         <ReimbursementModule />
+                    )}
+
+                    {activeModule === 'tpa_platform' && (
+                        <div className="space-y-6">
+                            {/* Inner navigation bar for TPA Center */}
+                            <div className="flex bg-gray-900 border border-white/5 rounded-2xl p-1.5 gap-1.5 text-xs font-bold w-full md:w-auto md:inline-flex">
+                                <button
+                                    onClick={() => setTpaSubTab('prior_auth')}
+                                    className={`px-4 py-2 rounded-xl transition ${tpaSubTab === 'prior_auth' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    Prior Auth Copilot (Fairway)
+                                </button>
+                                <button
+                                    onClick={() => setTpaSubTab('denial')}
+                                    className={`px-4 py-2 rounded-xl transition ${tpaSubTab === 'denial' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    Denial Hub &amp; Appeals (Aegis)
+                                </button>
+                                <button
+                                    onClick={() => setTpaSubTab('denial_queue')}
+                                    className={`px-4 py-2 rounded-xl transition ${tpaSubTab === 'denial_queue' ? 'bg-rose-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    📋 Denial Queue (Live Cases)
+                                </button>
+                                <button
+                                    onClick={() => setTpaSubTab('coding')}
+                                    className={`px-4 py-2 rounded-xl transition ${tpaSubTab === 'coding' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    Coding &amp; Scrubbing (Taiga)
+                                </button>
+                                <button
+                                    onClick={() => setTpaSubTab('orchestrator')}
+                                    className={`px-4 py-2 rounded-xl transition ${tpaSubTab === 'orchestrator' ? 'bg-indigo-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    Claims Timeline Simulator
+                                </button>
+                            </div>
+
+                            {/* Inner tab content */}
+                            <div className="mt-4">
+                                {tpaSubTab === 'prior_auth' && <PriorAuthCopilot />}
+                                {tpaSubTab === 'denial' && <DenialHub />}
+                                {tpaSubTab === 'denial_queue' && <DenialQueue />}
+                                {tpaSubTab === 'coding' && <BillingCoderView />}
+                                {tpaSubTab === 'orchestrator' && <WorkflowOrchestrator />}
+                            </div>
+                        </div>
                     )}
                 </div>
 
