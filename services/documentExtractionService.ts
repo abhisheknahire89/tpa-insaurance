@@ -22,40 +22,101 @@ export interface ExtractedPatientData {
     confidence: number;
     notes?: string;
     // Computed fields
+    clinical?: {
+        diagnosis_impression?: string | null;
+        doctor_name?: string | null;
+        consultation_date?: string | null;
+        lab_name?: string | null;
+        hospital_name?: string | null;
+        vitals?: {
+            bp?: string | null;
+            pulse?: string | null;
+            temp?: string | null;
+            spo2?: string | null;
+            rr?: string | null;
+        } | null;
+        drugs_prescribed?: string[] | null;
+    } | null;
+    pages?: Array<{
+        pageNumber: number;
+        classification: string;
+        tables: Array<{
+            tableName: string;
+            rows: Array<{
+                testName: string;
+                result: string;
+                units: string;
+                normalRange: string;
+            }>;
+        }>;
+    }>;
+    confidence: number;
+    notes?: string;
+    // Computed fields
     extracted_fields: string[];
     missing_fields: string[];
     clinical_excerpts?: string[];
 }
 
 const EXTRACTION_PROMPT = `
-Extract patient and insurance information from this document text.
-You are a medical data extraction bot. 
+You are an advanced medical OCR pipeline post-processor. 
+Analyze the extracted document text page-by-page. For each page, classify the document type (e.g. "Lab report – Urine examination", "Lab report – Dengue rapid test", "Lab report – CBC", "OPD prescription / consultation note", etc.). Extract any tables present (extract test names, results, units, and reference normal ranges). Also extract insurance-relevant demographics, medical providers, and clinical details.
 
-Return ONLY valid JSON (no markdown formatting, no \`\`\`json block) in this exact structure:
+Return ONLY a valid JSON object matching the following structure:
 {
   "document_type": "hospital_registration" | "insurance_card" | "policy_document" | "id_card" | "unknown",
   "patient": {
-    "name": "Full name as written",
-    "age": "number or null",
+    "name": "Full name or null",
+    "age": number or null,
     "dob": "YYYY-MM-DD or null",
     "gender": "Male" | "Female" | "Other" | null,
     "address": "Full address or null",
     "phone": "Phone number or null"
   },
   "insurance": {
-    "policy_number": "Policy/Certificate number or null",
+    "policy_number": "Policy number or null",
     "insurance_company": "Company name or null",
-    "tpa_name": "TPA name if visible or null",
-    "sum_insured": "number or null",
+    "tpa_name": "TPA name or null",
+    "sum_insured": number or null,
     "valid_till": "YYYY-MM-DD or null",
     "member_id": "Member/Employee ID or null"
   },
-  "confidence": "0-100 number",
-  "notes": "Any issues or unclear text",
-  "clinical_excerpts": [
-    "verbatim clinical quote or clinical finding 1",
-    "verbatim clinical quote or clinical finding 2"
-  ]
+  "clinical": {
+    "diagnosis_impression": "Stated diagnosis or impressions (e.g. Dengue, Acute Appendicitis)",
+    "doctor_name": "Name of the treating physician",
+    "consultation_date": "YYYY-MM-DD or null",
+    "lab_name": "Name of the lab where tests were done",
+    "hospital_name": "Name of the hospital",
+    "vitals": {
+      "bp": "blood pressure",
+      "pulse": "pulse rate",
+      "temp": "temperature",
+      "spo2": "oxygen saturation",
+      "rr": "respiratory rate"
+    },
+    "drugs_prescribed": ["List of drug names, or empty array"]
+  },
+  "pages": [
+    {
+      "pageNumber": 1,
+      "classification": "Document classification per page (e.g., 'Lab report - CBC')",
+      "tables": [
+        {
+          "tableName": "Table name if any (e.g. 'Complete Blood Count')",
+          "rows": [
+            {
+              "testName": "Hemoglobin",
+              "result": "12.5",
+              "units": "g/dL",
+              "normalRange": "13.0 - 17.0"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "confidence": 95,
+  "notes": "Any extraction issues or notes"
 }
 
 If a field is not visible, missing, or unclear, return strictly null for that field. Do not make up information.
@@ -140,14 +201,70 @@ export const extractFromDocument = async (file: File): Promise<ExtractedPatientD
             patient: { name: 'Abhishek Nahire', age: 28, gender: 'Male' },
             insurance: { policy_number: 'POL-123456', insurance_company: 'Star Health', sum_insured: 500000 }
         });
-        return {
+        
+        const mockPages = [
+            {
+                pageNumber: 1,
+                classification: isGluc ? "Policy Document – Plan Details" : "Lab report – CBC",
+                tables: [
+                    {
+                        tableName: isGluc ? "Plan Coverage" : "Complete Blood Count",
+                        rows: isGluc ? [
+                            { testName: "Room Rent Limit", result: "Single Private A/C", units: "Daily", normalRange: "Up to 5000" }
+                        ] : [
+                            { testName: "Hemoglobin", result: "12.5", units: "g/dL", normalRange: "13.0 - 17.0" },
+                            { testName: "White Blood Cells (WBC)", result: "14500", units: "/cumm", normalRange: "4000 - 11000" },
+                            { testName: "Platelet Count", result: "180000", units: "/cumm", normalRange: "150000 - 450000" }
+                        ]
+                    }
+                ]
+            },
+            {
+                pageNumber: 2,
+                classification: isGluc ? "ID Card – Member Details" : "Lab report – Dengue rapid test",
+                tables: [
+                    {
+                        tableName: isGluc ? "Member Details" : "Dengue Duo Panel",
+                        rows: isGluc ? [
+                            { testName: "Co-pay", result: "10%", units: "Percentage", normalRange: "0%" }
+                        ] : [
+                            { testName: "Dengue NS1 Antigen", result: "POSITIVE", units: "Qualitative", normalRange: "NEGATIVE" }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        const mockClinical = {
+            diagnosis_impression: isGluc ? "Routine Check" : "Dengue Fever with Leukocytosis",
+            doctor_name: "Dr. Ramesh Kumar",
+            consultation_date: new Date().toISOString().split('T')[0],
+            lab_name: "Aivana Diagnostics",
+            hospital_name: "Star Specialty Hospital",
+            vitals: {
+                bp: "110/70",
+                pulse: "98",
+                temp: "101",
+                spo2: "97",
+                rr: "18"
+            },
+            drugs_prescribed: ["Paracetamol 650mg TDS", "IV Fluids Normal Saline"]
+        };
+
+        const resultPayload = {
             document_type: isGluc ? 'policy_document' : 'unknown',
             patient: { name: 'Abhishek Nahire', age: 28, gender: 'Male' },
             insurance: { policy_number: 'POL-123456', insurance_company: 'Star Health', sum_insured: 500000 },
+            clinical: mockClinical,
+            pages: mockPages,
             confidence: 99,
             extracted_fields: extracted,
             missing_fields: missing,
             clinical_excerpts: excerpts
+        };
+        return {
+            ...resultPayload,
+            rawJson: JSON.stringify(resultPayload, null, 2)
         };
     }
 
@@ -192,7 +309,8 @@ Instructions: Use the extracted text above to identify which page contains what 
             return {
                 ...data,
                 extracted_fields: extracted,
-                missing_fields: missing
+                missing_fields: missing,
+                rawJson: JSON.stringify(data, null, 2)
             };
         } catch (error) {
             lastError = error;

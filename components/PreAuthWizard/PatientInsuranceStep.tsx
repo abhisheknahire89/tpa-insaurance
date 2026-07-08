@@ -24,7 +24,10 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
     const [searching, setSearching] = useState(false);
     const [policyDateWarning, setPolicyDateWarning] = useState('');
     const [extractionException, setExtractionException] = useState('');
-    const [extractionResult, setExtractionResult] = useState<{ filled: string[], pending: string[] } | null>(null);
+    const [extractionResult, setExtractionResult] = useState<any | null>(null);
+    const [showRawJson, setShowRawJson] = useState(false);
+    const [showTables, setShowTables] = useState(true);
+    const [copied, setCopied] = useState(false);
 
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -127,7 +130,10 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
 
             setExtractionResult({
                 filled: extracted.extracted_fields,
-                pending: extracted.missing_fields
+                pending: extracted.missing_fields,
+                pages: extracted.pages || [],
+                clinical: extracted.clinical || null,
+                rawJson: extracted.rawJson || ''
             });
 
             setOcrDone(true);
@@ -332,13 +338,26 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
 
             {/* Extraction Results Summary */}
             {ocrDone && extractionResult && (
-                <div className="bg-blue-950/10 border border-blue-500/20 rounded-xl p-5 mb-4 max-w-full overflow-hidden">
-                    <div className="flex gap-3 mb-4 items-center">
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center text-sm font-bold">✨</div>
-                        <div>
-                            <h3 className="text-white font-semibold text-xs uppercase tracking-wider">Extraction Complete</h3>
-                            <p className="text-gray-400 text-xs mt-0.5">Aivana OCR parsed registration details</p>
+                <div className="bg-blue-950/10 border border-blue-500/20 rounded-xl p-5 mb-4 max-w-full overflow-hidden space-y-4">
+                    <div className="flex gap-3 items-center justify-between">
+                        <div className="flex gap-3 items-center">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center text-sm font-bold">✨</div>
+                            <div>
+                                <h3 className="text-white font-semibold text-xs uppercase tracking-wider">Extraction Pipeline Complete</h3>
+                                <p className="text-gray-400 text-xs mt-0.5 font-semibold">Aivana OCR + Gemini post-processing pipeline executed</p>
+                            </div>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                navigator.clipboard.writeText(extractionResult.rawJson);
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="text-[11px] bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg px-2.5 py-1 text-blue-400 font-semibold transition-all"
+                        >
+                            {copied ? '✓ Copied JSON' : '📋 Copy Pipeline JSON'}
+                        </button>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4 bg-black/30 p-4 rounded-xl">
@@ -368,6 +387,127 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
                                 )}
                             </ul>
                         </div>
+                    </div>
+
+                    {/* Page-by-Page Document Classification */}
+                    {extractionResult.pages && extractionResult.pages.length > 0 && (
+                        <div className="bg-black/20 p-4 rounded-xl border border-white/5 space-y-2.5">
+                            <h4 className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">📄 Document Page-by-Page Classification</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {extractionResult.pages.map((p: any) => (
+                                    <div key={p.pageNumber} className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-lg p-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded font-bold font-mono">PAGE {p.pageNumber}</span>
+                                            <span className="text-xs text-white font-semibold">{p.classification}</span>
+                                        </div>
+                                        {p.tables && p.tables.length > 0 && (
+                                            <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Tables Found</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Clinical Details & Tables */}
+                    {extractionResult.pages && extractionResult.pages.some((p: any) => p.tables && p.tables.length > 0) && (
+                        <div className="bg-black/20 p-4 rounded-xl border border-white/5 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <h4 className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                    <span>📊 Layout OCR: Extracted Clinical Tables</span>
+                                </h4>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTables(!showTables)}
+                                    className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold"
+                                >
+                                    {showTables ? 'Hide Tables' : 'Show Tables'}
+                                </button>
+                            </div>
+
+                            {showTables && (
+                                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                                    {extractionResult.pages.map((p: any) => 
+                                        p.tables && p.tables.map((t: any, tIdx: number) => (
+                                            <div key={`${p.pageNumber}-${tIdx}`} className="bg-white/[0.01] border border-white/5 rounded-lg p-3 space-y-2">
+                                                <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider flex items-center justify-between">
+                                                    <span>Table: {t.tableName || 'Laboratory Values'}</span>
+                                                    <span className="text-[9px] text-gray-500 font-mono">Page {p.pageNumber}</span>
+                                                </div>
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="border-b border-white/5 text-[10px] text-gray-500 uppercase tracking-wider font-bold">
+                                                            <th className="py-1">Test Name</th>
+                                                            <th className="py-1 text-center">Result</th>
+                                                            <th className="py-1 text-center">Units</th>
+                                                            <th className="py-1 text-right">Normal Range</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-white/5 text-xs text-gray-300 font-semibold">
+                                                        {t.rows && t.rows.map((r: any, rIdx: number) => (
+                                                            <tr key={rIdx} className="hover:bg-white/[0.01]">
+                                                                <td className="py-1.5 text-white">{r.testName}</td>
+                                                                <td className="py-1.5 text-center text-blue-300 font-mono">{r.result}</td>
+                                                                <td className="py-1.5 text-center text-gray-500">{r.units || '-'}</td>
+                                                                <td className="py-1.5 text-right text-gray-500 font-mono">{r.normalRange || '-'}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Insurance Relevant Fields Section */}
+                    {extractionResult.clinical && (
+                        <div className="bg-black/20 p-4 rounded-xl border border-white/5 space-y-3">
+                            <h4 className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">🎯 Insurance-Relevant Fields Extracted</h4>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div className="bg-white/[0.01] border border-white/5 rounded-lg p-2.5 space-y-1">
+                                    <span className="text-[9px] text-gray-500 uppercase font-bold tracking-wider">Provider / Institution</span>
+                                    <div className="text-white font-semibold leading-relaxed">
+                                        🏥 {extractionResult.clinical.hospital_name || 'Hospital Name Not Specified'}
+                                    </div>
+                                    <div className="text-gray-400 text-[11px] font-semibold">
+                                        🩺 Dr. {extractionResult.clinical.doctor_name || 'Consulting Physician'}
+                                    </div>
+                                </div>
+                                <div className="bg-white/[0.01] border border-white/5 rounded-lg p-2.5 space-y-1">
+                                    <span className="text-[9px] text-gray-500 uppercase font-bold tracking-wider">Clinical Impression</span>
+                                    <div className="text-blue-300 font-semibold leading-relaxed">
+                                        🤒 {extractionResult.clinical.diagnosis_impression || 'Diagnosis / Impression Not Found'}
+                                    </div>
+                                    {extractionResult.clinical.consultation_date && (
+                                        <div className="text-gray-500 text-[11px] font-mono">
+                                            📅 Date: {extractionResult.clinical.consultation_date}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Raw JSON Code Inspect Box */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-gray-500 font-mono font-semibold">Pipeline Output: structured_extraction.json</span>
+                            <button
+                                type="button"
+                                onClick={() => setShowRawJson(!showRawJson)}
+                                className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold"
+                            >
+                                {showRawJson ? 'Hide Raw JSON' : 'View Raw JSON'}
+                            </button>
+                        </div>
+                        {showRawJson && (
+                            <pre className="text-[10px] bg-[#090b10] border border-white/10 rounded-lg p-3 text-indigo-400 font-mono overflow-auto max-h-48 leading-relaxed">
+                                {extractionResult.rawJson}
+                            </pre>
+                        )}
                     </div>
                 </div>
             )}
