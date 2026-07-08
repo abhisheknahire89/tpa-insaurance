@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ClinicalDetails, ClinicalDataSource, DiagnosisEntry, WizardVitals, CaseComplexity } from '../PreAuthWizard/types';
-import { searchICD10 } from '../../config/icd10Database';
+import { lookupICD, IcdCandidate } from '../../services/icdService';
 import { ICDPicker } from './ICDPicker';
 
 interface ClinicalDetailsStepProps {
@@ -21,7 +21,7 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
     const [dataSource, setDataSource] = useState<ClinicalDataSource | null>(clinical.chiefComplaints ? 'manual_entry' : null);
     const [showOptionalFields, setShowOptionalFields] = useState(false);
     const [icdQuery, setIcdQuery] = useState('');
-    const [icdResults, setIcdResults] = useState<ReturnType<typeof searchICD10>>([]);
+    const [icdResults, setIcdResults] = useState<IcdCandidate[]>([]);
     const [showInjury, setShowInjury] = useState(false);
     const [showSurgery, setShowSurgery] = useState(false);
     const [showMaternity, setShowMaternity] = useState(false);
@@ -47,14 +47,14 @@ export const ClinicalDetailsStep: React.FC<ClinicalDetailsStepProps> = ({
 
     const handleIcdSearch = (q: string) => {
         setIcdQuery(q);
-        setIcdResults(q.length >= 2 ? searchICD10(q) : []);
+        setIcdResults(q.length >= 2 ? lookupICD(q) : []);
     };
 
-    const addDiagnosis = (entry: ReturnType<typeof searchICD10>[0]) => {
+    const addDiagnosis = (entry: IcdCandidate) => {
         const existing = c.diagnoses ?? [];
         if (existing.some(d => d.icd10Code === entry.code)) return;
         const newEntry: DiagnosisEntry = {
-            diagnosis: entry.commonName ?? entry.description,
+            diagnosis: entry.description,
             icd10Code: 'Pending ICD-10',
             icd10Description: 'Selection required',
             probability: 0.85,
