@@ -3,6 +3,7 @@ import { PatientRecord, InsurancePolicyDetails, EntryPath } from '../PreAuthWiza
 import { INSURER_LIST, INDIAN_STATES, TPA_NAMES } from '../../config/tpaRegistry';
 import { calculateAge, isPolicyActive, isPolicyExpiringSoon, todayISO } from '../../utils/formatters';
 import { extractFromDocument } from '../../services/documentExtractionService';
+import { compressPdfIfNeeded } from '../../services/pdfCompressor';
 import { searchPatients } from '../../services/storageService';
 
 interface PatientInsuranceStepProps {
@@ -28,6 +29,7 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
     const [showRawJson, setShowRawJson] = useState(false);
     const [showTables, setShowTables] = useState(true);
     const [copied, setCopied] = useState(false);
+    const [compressionProgress, setCompressionProgress] = useState<string>('');
 
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -94,7 +96,16 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
         setExtractionResult(null);
         
         try {
-            const extracted = await extractFromDocument(file);
+            let fileToProcess = file;
+            if (file.type === 'application/pdf') {
+                setCompressionProgress("Initializing compression...");
+                fileToProcess = await compressPdfIfNeeded(file, 8 * 1024 * 1024, (msg) => {
+                    setCompressionProgress(msg);
+                });
+                setCompressionProgress('');
+            }
+
+            const extracted = await extractFromDocument(fileToProcess);
             
             if (extracted.document_type === 'unknown' || extracted.confidence < 40) {
                  setExtractionException("Could not read document clearly or invalid type. Please enter details manually.");
@@ -298,8 +309,12 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
                   <div className="flex items-center gap-3.5 p-5 bg-blue-950/20 rounded-2xl border border-blue-500/20">
                     <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
                     <div>
-                      <p className="font-semibold text-xs text-white">Extracting information...</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Reading document fields with AI model</p>
+                      <p className="font-semibold text-xs text-white">
+                        {compressionProgress ? 'Preparing document...' : 'Extracting information...'}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {compressionProgress || 'Reading document fields with AI model'}
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -314,7 +329,7 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
                                 </svg>
                             </div>
                             <div className="text-sm text-white font-bold">Drop PDF or Image here, or click to upload</div>
-                            <div className="text-gray-500 text-[11px] max-w-sm mx-auto leading-normal">Upload Hospital Registration PDF, TPA Card, ID Card, or Policy Document</div>
+                            <div className="text-gray-500 text-[11px] max-w-sm mx-auto leading-normal">Upload PDF or Image — Large PDFs auto-compressed, most files supported</div>
                             {extractionException && <div className="text-red-400 mt-3 text-xs font-semibold">{extractionException}</div>}
                         </div>
                   </div>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PreAuthRecord, WizardDocument, WizardDocCategory, MedicalNecessityStatement, DoctorDeclarationData, PatientDeclarationData, HospitalDeclarationData, EvidenceSuggestion } from '../PreAuthWizard/types';
 import { generateMedicalNecessity, generateIRDAITextFromRecord } from '../../services/medicalNecessityService';
+import { compressPdfIfNeeded } from '../../services/pdfCompressor';
 import { extractSuggestionsFromEvidence } from '../../services/evidenceExtractionService';
 import { scoreNecessityStrength } from '../../utils/strengthScorer';
 import { getRequiredDocuments } from '../../utils/documentRequirements';
@@ -47,6 +48,7 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
     const [generating, setGenerating] = useState(false);
     const [generated, setGenerated] = useState(false);
     const [irdaiText, setIrdaiText] = useState('');
+    const [compressionProgress, setCompressionProgress] = useState<string>('');
     const fileRef = useRef<HTMLInputElement>(null);
 
     // Only fetch TPA report internally if not provided externally
@@ -199,15 +201,24 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
         if (!necessity) generateNecessity();
     }, []);
 
-    const handleFileUpload = (file: File) => {
+    const handleFileUpload = async (file: File) => {
+        let fileToProcess = file;
+        if (file.type === 'application/pdf') {
+            setCompressionProgress("Initializing compression...");
+            fileToProcess = await compressPdfIfNeeded(file, 8 * 1024 * 1024, (msg) => {
+                setCompressionProgress(msg);
+            });
+            setCompressionProgress('');
+        }
+
         const reader = new FileReader();
         reader.onload = (e) => {
             const base64 = (e.target?.result as string) ?? '';
-            const guessedCategory = guessCategory(file.name);
+            const guessedCategory = guessCategory(fileToProcess.name);
             
             // Phase 2 Checks:
             // 1. Duplicate check
-            const isDuplicate = docs.some(d => d.fileName === file.name || d.base64Data === base64);
+            const isDuplicate = docs.some(d => d.fileName === fileToProcess.name || d.base64Data === base64);
             const duplicateWarning = isDuplicate ? '⚠️ Duplicate document name/content already uploaded' : undefined;
 
             // 2. Expiry check
@@ -221,16 +232,16 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
             }
 
             // 3. Readability check (Simulated OCR verification)
-            const isPoorQuality = file.name.toLowerCase().includes('blurry') || file.name.toLowerCase().includes('unreadable') || file.size < 2048;
+            const isPoorQuality = fileToProcess.name.toLowerCase().includes('blurry') || fileToProcess.name.toLowerCase().includes('unreadable') || fileToProcess.size < 2048;
             const readabilityConfidence = isPoorQuality ? 42 : 96;
             const readabilityWarning = isPoorQuality ? '⚠️ Low readability warning (OCR confidence < 50%)' : undefined;
 
             const doc: WizardDocument = {
                 id: `DOC-${Date.now()}`,
-                fileName: file.name,
-                fileSizeDisplay: formatFileSize(file.size),
-                fileType: file.type.includes('pdf') ? 'pdf' : 'image',
-                mimeType: file.type,
+                fileName: fileToProcess.name,
+                fileSizeDisplay: formatFileSize(fileToProcess.size),
+                fileType: fileToProcess.type.includes('pdf') ? 'pdf' : 'image',
+                mimeType: fileToProcess.type,
                 uploadedAt: new Date().toISOString(),
                 base64Data: base64,
                 documentCategory: guessedCategory,
@@ -243,7 +254,7 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
             };
             onRecordChange({ ...record, uploadedDocuments: [...docs, doc] });
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(fileToProcess);
     };
 
     const removeDoc = (id: string) => {
@@ -780,14 +791,22 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
                                                 </div>
                                             )}
 
-                                            <div
-                                                onClick={() => fileRef.current?.click()}
-                                                className="border border-dashed border-white/10 hover:border-blue-500/40 rounded-xl p-6 text-center bg-white/[0.01] hover:bg-blue-500/5 cursor-pointer transition-all duration-200 group"
-                                            >
-                                                <div className="text-xl transition-transform duration-200 group-hover:scale-110">📁</div>
-                                                <div className="text-white font-semibold mt-2 text-xs uppercase tracking-wider">Drop files here or click to upload</div>
-                                                <div className="text-[10px] text-gray-500 mt-1">PDF, JPG, PNG — max 10MB each</div>
-                                            </div>
+                                            {compressionProgress ? (
+                                                <div className="border border-dashed border-blue-500/35 bg-blue-500/5 rounded-xl p-6 text-center space-y-2">
+                                                    <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                                    <div className="text-white font-semibold text-xs uppercase tracking-wider">Preparing document...</div>
+                                                    <div className="text-[10px] text-gray-400 font-mono">{compressionProgress}</div>
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    onClick={() => fileRef.current?.click()}
+                                                    className="border border-dashed border-white/10 hover:border-blue-500/40 rounded-xl p-6 text-center bg-white/[0.01] hover:bg-blue-500/5 cursor-pointer transition-all duration-200 group"
+                                                >
+                                                    <div className="text-xl transition-transform duration-200 group-hover:scale-110">📁</div>
+                                                    <div className="text-white font-semibold mt-2 text-xs uppercase tracking-wider">Drop files here or click to upload</div>
+                                                    <div className="text-[10px] text-gray-500 mt-1">PDF, JPG, PNG — Large PDFs auto-compressed, most files supported</div>
+                                                </div>
+                                            )}
                                             <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
 
                                             <div className="space-y-2">
@@ -829,14 +848,22 @@ export const DocumentsGenerateStep: React.FC<DocGenerateStepProps> = ({
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        <div
-                                            onClick={() => fileRef.current?.click()}
-                                            className="border-2 border-dashed border-white/10 hover:border-blue-500/40 rounded-xl p-12 text-center bg-white/[0.01] hover:bg-blue-500/5 cursor-pointer transition-all duration-200 group"
-                                        >
-                                            <div className="text-3xl transition-transform duration-200 group-hover:scale-110">📁</div>
-                                            <div className="text-white font-semibold mt-3 text-xs uppercase tracking-wider">Drop files here or click to upload</div>
-                                            <div className="text-[10px] text-gray-500 mt-1">PDF, JPG, PNG — max 10MB each</div>
-                                        </div>
+                                        {compressionProgress ? (
+                                            <div className="border-2 border-dashed border-blue-500/35 bg-blue-500/5 rounded-xl p-12 text-center space-y-2.5">
+                                                <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                                <div className="text-white font-semibold text-xs uppercase tracking-wider">Preparing document...</div>
+                                                <div className="text-[10px] text-gray-400 font-mono">{compressionProgress}</div>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                onClick={() => fileRef.current?.click()}
+                                                className="border-2 border-dashed border-white/10 hover:border-blue-500/40 rounded-xl p-12 text-center bg-white/[0.01] hover:bg-blue-500/5 cursor-pointer transition-all duration-200 group"
+                                            >
+                                                <div className="text-3xl transition-transform duration-200 group-hover:scale-110">📁</div>
+                                                <div className="text-white font-semibold mt-3 text-xs uppercase tracking-wider">Drop files here or click to upload</div>
+                                                <div className="text-[10px] text-gray-500 mt-1">PDF, JPG, PNG — Large PDFs auto-compressed, most files supported</div>
+                                            </div>
+                                        )}
                                         <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
 
                                         {requiredDocs.length > 0 && (
