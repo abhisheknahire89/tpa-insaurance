@@ -1,4 +1,5 @@
 import { getGoogleGenerativeAIClient, rotateApiKey, getActiveApiKey } from './apiKeys';
+import { extractTextFromDocument } from './ocrService';
 
 export interface ExtractedPatientData {
     document_type: string;
@@ -27,7 +28,7 @@ export interface ExtractedPatientData {
 }
 
 const EXTRACTION_PROMPT = `
-Extract patient and insurance information from this document.
+Extract patient and insurance information from this document text.
 You are a medical data extraction bot. 
 
 Return ONLY valid JSON (no markdown formatting, no \`\`\`json block) in this exact structure:
@@ -94,6 +95,14 @@ function getPreCachedExcerpts(fileName: string): string[] {
             'Patient complains of polyuria and polydipsia for 3 days.'
         ];
     }
+    if (nameLower.includes('gluc') || nameLower.includes('diabet')) {
+        return [
+            'Blood sugar values: fasting blood glucose is 280 mg/dL and post-prandial blood glucose is 380 mg/dL.',
+            'Urine ketones: negative. ECG: Normal.',
+            'High blood sugar noted during home tests. Advising emergency glycemic control and stabilization of blood glucose levels.',
+            'Patient complains of polyuria and polydipsia for 3 days.'
+        ];
+    }
     if (nameLower.includes('ultrasound') || nameLower.includes('pneumonia')) {
         return [
             'Cough and high fever noticed recently. Chest crackles present.',
@@ -127,7 +136,6 @@ export const extractFromDocument = async (file: File): Promise<ExtractedPatientD
         console.log("[documentExtractionService] Returning pre-cached demo excerpts and data.");
         const excerpts = getPreCachedExcerpts(file.name);
         const isGluc = file.name.includes('gluc');
-        const isCbc = file.name.includes('cbc');
         const { extracted, missing } = computeExtractedMissingFields({
             patient: { name: 'Abhishek Nahire', age: 28, gender: 'Male' },
             insurance: { policy_number: 'POL-123456', insurance_company: 'Star Health', sum_insured: 500000 }
@@ -146,37 +154,28 @@ export const extractFromDocument = async (file: File): Promise<ExtractedPatientD
     let attempts = 3;
     let lastError: any = null;
 
-    // Convert file to base64
-    const fileToBase64 = (f: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(f);
-            reader.onload = () => {
-                const base64String = reader.result as string;
-                // Remove data url prefix
-                resolve(base64String.split(',')[1]);
-            };
-            reader.onerror = error => reject(error);
-        });
-    };
+    // Run local OCR or PDF text extraction
+    console.log(`[documentExtractionService] Running local text extraction for file: ${file.name}`);
+    const extractedText = await extractTextFromDocument(file);
+    console.log(`[documentExtractionService] Extracted ${extractedText.length} characters of text locally.`);
 
-    const base64Data = await fileToBase64(file);
+    const userPrompt = `
+DOCUMENT FILENAME: ${file.name}
 
-    const imageParts = [
-        {
-            inlineData: {
-                data: base64Data,
-                mimeType: file.type
-            }
-        }
-    ];
+EXTRACTED TEXT FROM DOCUMENT:
+"""
+${extractedText}
+"""
+
+Instructions: Use the extracted text above to identify which page contains what test/report/info, fill out the patient and insurance details, and return strictly valid JSON matching the schema.
+`;
 
     while (attempts > 0) {
         try {
             const client = getGoogleGenerativeAIClient();
             const model = client.getGenerativeModel({ model: MODEL_DOCUMENT });
 
-            const result = await model.generateContent([EXTRACTION_PROMPT, ...imageParts]);
+            const result = await model.generateContent([EXTRACTION_PROMPT, userPrompt]);
             const responseText = result.response.text().trim();
 
             // Ensure stripping markdown json blocks which GEMINI sometimes outputs anyway

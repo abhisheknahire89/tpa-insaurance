@@ -1,10 +1,11 @@
 import { WizardDocument, EvidenceSuggestion } from '../components/PreAuthWizard/types';
 import { getGoogleGenerativeAIClient, rotateApiKey, getActiveApiKey } from './apiKeys';
 import { MODEL_DOCUMENT } from '../config/modelConfig';
+import { extractTextFromWizardDocument } from './ocrService';
 
 const EXTRACTION_PROMPT = `
 You are an expert medical billing and coding assistant.
-Analyze the uploaded medical documents (discharge summaries, clinical notes, lab/radiology reports) to extract specific values for IRDAI Part C insurance form suggestions.
+Analyze the uploaded medical document text (from discharge summaries, clinical notes, lab/radiology reports) to extract specific values for IRDAI Part C insurance form suggestions.
 
 For each field, you must extract:
 1. The suggested value.
@@ -129,7 +130,6 @@ function getPreCachedDemoSuggestions(fileName: string, diagnosisName?: string): 
         sourceDocName: fileName,
         confidence: 85
       }
-      // Note: RTA, Substance Abuse, Other Policy, and Family Physician are intentionally silent
     ];
   }
 
@@ -160,7 +160,6 @@ function getPreCachedDemoSuggestions(fileName: string, diagnosisName?: string): 
         sourceDocName: fileName,
         confidence: 95
       }
-      // Note: RTA, Substance Abuse, Other Policy, and Family Physician are intentionally silent
     ];
   }
 
@@ -191,7 +190,6 @@ function getPreCachedDemoSuggestions(fileName: string, diagnosisName?: string): 
         sourceDocName: fileName,
         confidence: 95
       }
-      // Note: RTA, Substance Abuse, Other Policy, and Family Physician are intentionally silent
     ];
   }
 
@@ -227,20 +225,23 @@ export const extractSuggestionsFromEvidence = async (
     return Array.from(uniqueFields.values());
   }
 
-  // Prepare image/pdf parts for upload to Gemini
-  const fileParts = documents.map(doc => {
-    // Remove metadata prefix if present in base64
-    let cleanBase64 = doc.base64Data;
-    if (cleanBase64.includes(',')) {
-      cleanBase64 = cleanBase64.split(',')[1];
-    }
-    return {
-      inlineData: {
-        data: cleanBase64,
-        mimeType: doc.mimeType
-      }
-    };
-  });
+  // Extract text from all documents locally first
+  console.log(`[evidenceExtractionService] Extracting text from ${documents.length} documents via local OCR...`);
+  const docTexts: string[] = [];
+  for (const doc of documents) {
+      const docText = await extractTextFromWizardDocument(doc);
+      docTexts.push(`--- START OF DOCUMENT: ${doc.fileName} ---\n${docText}\n--- END OF DOCUMENT: ${doc.fileName} ---\n`);
+  }
+  const mergedDocsText = docTexts.join('\n');
+
+  const userPrompt = `
+MERGED UPLOADED DOCUMENTS CONTENT:
+"""
+${mergedDocsText}
+"""
+
+Instructions: Read the extracted text from all uploaded documents above. Identify what page contains what test/report/finding, match the values against the IRDAI Part C form schema, and return the JSON array of suggestions.
+`;
 
   let attempts = 3;
   let lastError: any = null;
@@ -250,7 +251,7 @@ export const extractSuggestionsFromEvidence = async (
       const client = getGoogleGenerativeAIClient();
       const model = client.getGenerativeModel({ model: MODEL_DOCUMENT });
 
-      const result = await model.generateContent([EXTRACTION_PROMPT, ...fileParts]);
+      const result = await model.generateContent([EXTRACTION_PROMPT, userPrompt]);
       const responseText = result.response.text().trim();
 
       let jsonStr = responseText;
