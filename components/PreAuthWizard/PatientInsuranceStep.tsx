@@ -107,7 +107,11 @@ export const PatientInsuranceStep: React.FC<PatientInsuranceStepProps> = ({
 
             const extracted = await extractFromDocument(fileToProcess);
             
-            if (extracted.document_type === 'unknown' || extracted.confidence < 40) {
+            // Only reject if truly unreadable: very low confidence AND no useful data extracted at all.
+            // Note: lab reports, prescriptions, CBC results etc. legitimately return document_type='unknown'
+            // because they don't match the 4 specific insurance doc types, but they still contain valid data.
+            const hasAnyUsefulData = extracted.patient?.name || extracted.patient?.age || extracted.insurance?.policy_number || (extracted.pages && extracted.pages.length > 0) || (extracted.clinical?.diagnosis_impression);
+            if (!hasAnyUsefulData && extracted.confidence < 20) {
                  setExtractionException("Could not read document clearly or invalid type. Please enter details manually.");
                  setIsExtracting(false);
                  return;

@@ -20,9 +20,6 @@ export interface ExtractedPatientData {
         valid_till?: string | null;
         member_id?: string | null;
     };
-    confidence: number;
-    notes?: string;
-    // Computed fields
     clinical?: {
         diagnosis_impression?: string | null;
         doctor_name?: string | null;
@@ -53,10 +50,10 @@ export interface ExtractedPatientData {
     }>;
     confidence: number;
     notes?: string;
-    // Computed fields
     extracted_fields: string[];
     missing_fields: string[];
     clinical_excerpts?: string[];
+    rawJson?: string;
 }
 
 const EXTRACTION_PROMPT = `
@@ -253,7 +250,7 @@ export const extractFromDocument = async (file: File): Promise<ExtractedPatientD
         };
 
         const resultPayload = {
-            document_type: isGluc ? 'policy_document' : 'unknown',
+            document_type: isGluc ? 'policy_document' : 'lab_report',
             patient: { name: 'Abhishek Nahire', age: 28, gender: 'Male' },
             insurance: { policy_number: 'POL-123456', insurance_company: 'Star Health', sum_insured: 500000 },
             clinical: mockClinical,
