@@ -770,49 +770,13 @@ export const InsuranceModule: React.FC = () => {
                                         </button>
                                     </div>
                                 </div>
-                            ) : showExtractor ? (
-                                <div className="p-8 w-full max-w-3xl space-y-6 mx-auto">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="text-xl font-bold text-gray-200">New Pre-Authorization Case</h3>
-                                        <button
-                                            onClick={() => setShowExtractor(false)}
-                                            className="text-xs text-gray-400 hover:text-white underline transition"
-                                        >
-                                            ← Back to Dashboard
-                                        </button>
-                                    </div>
-                                    <p className="text-sm text-gray-400">Paste a clinical note below to automatically extract and pre-fill Pre-Authorization fields using AI, or skip to start with manual entry.</p>
-
-                                    <textarea
-                                        className="w-full h-64 bg-gray-900 border border-gray-700 rounded-lg p-4 text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500"
-                                        placeholder="E.g., Anil Kankriya, 58 year old male. Known diabetic on metformin. Presenting with high grade fever..."
-                                        value={mockClinicalNote}
-                                        onChange={(e) => setMockClinicalNote(e.target.value)}
-                                    />
-
-                                    <div className="flex justify-end gap-3 mt-4">
-                                        <button
-                                            className="px-6 py-3 bg-gray-800 hover:bg-gray-700 font-semibold rounded-lg text-white"
-                                            onClick={() => {
-                                                setPrefilledData(null);
-                                                setSelectedRecord(null);
-                                                setShowWizard(true);
-                                            }}
-                                        >
-                                            Skip / Manual Entry
-                                        </button>
-                                        <button
-                                            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg text-white disabled:opacity-50"
-                                            onClick={handleExtract}
-                                            disabled={isExtracting || !mockClinicalNote}
-                                        >
-                                            {isExtracting ? 'Extracting via AI...' : 'Generate Pre-Auth Wizard 🚀'}
-                                        </button>
-                                    </div>
-                                </div>
                             ) : (
                                 <PreAuthDashboard
-                                    onNewPreAuth={() => setShowExtractor(true)}
+                                    onNewPreAuth={() => {
+                                        setPrefilledData(null);
+                                        setSelectedRecord(null);
+                                        setShowWizard(true);
+                                    }}
                                     onOpenPreAuth={(rec) => {
                                         setSelectedRecord(rec);
                                         setShowWizard(true);
