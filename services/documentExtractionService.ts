@@ -1,5 +1,6 @@
 import { getGoogleGenerativeAIClient, rotateApiKey, getActiveApiKey } from './apiKeys';
-import { extractTextFromDocument } from './ocrService';
+import { extractPagesFromDocument } from './ocrService';
+import { buildLlamaDocument, runLlamaGeminiPipeline } from './llamaIndexOrchestrator';
 
 export interface ExtractedPatientData {
     document_type: string;
@@ -268,61 +269,15 @@ export const extractFromDocument = async (file: File): Promise<ExtractedPatientD
         };
     }
 
-    let attempts = 3;
-    let lastError: any = null;
+    // Run page-by-page local text extraction (Stage 2)
+    console.log(`[documentExtractionService] Extracting page-by-page text for file: ${file.name}`);
+    const pageTexts = await extractPagesFromDocument(file);
+    console.log(`[documentExtractionService] Extracted ${pageTexts.length} pages locally.`);
 
-    // Run local OCR or PDF text extraction
-    console.log(`[documentExtractionService] Running local text extraction for file: ${file.name}`);
-    const extractedText = await extractTextFromDocument(file);
-    console.log(`[documentExtractionService] Extracted ${extractedText.length} characters of text locally.`);
+    // Wrap pages in LlamaIndex Document & Nodes (Stage 3)
+    const llamaDoc = buildLlamaDocument(file.name, file.type, new Date().toISOString(), pageTexts);
+    console.log(`[documentExtractionService] Created LlamaIndex Document: ${llamaDoc.id} with ${llamaDoc.nodes.length} nodes.`);
 
-    const userPrompt = `
-DOCUMENT FILENAME: ${file.name}
-
-EXTRACTED TEXT FROM DOCUMENT:
-"""
-${extractedText}
-"""
-
-Instructions: Use the extracted text above to identify which page contains what test/report/info, fill out the patient and insurance details, and return strictly valid JSON matching the schema.
-`;
-
-    while (attempts > 0) {
-        try {
-            const client = getGoogleGenerativeAIClient();
-            const model = client.getGenerativeModel({ model: MODEL_DOCUMENT });
-
-            const result = await model.generateContent([EXTRACTION_PROMPT, userPrompt]);
-            const responseText = result.response.text().trim();
-
-            // Ensure stripping markdown json blocks which GEMINI sometimes outputs anyway
-            let jsonStr = responseText;
-            if (jsonStr.startsWith('```json')) {
-                jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
-            } else if (jsonStr.startsWith('```')) {
-                jsonStr = jsonStr.replace(/^```/, '').replace(/```$/, '').trim();
-            }
-
-            const data = JSON.parse(jsonStr);
-            const { extracted, missing } = computeExtractedMissingFields(data);
-
-            return {
-                ...data,
-                extracted_fields: extracted,
-                missing_fields: missing,
-                rawJson: JSON.stringify(data, null, 2)
-            };
-        } catch (error) {
-            lastError = error;
-            attempts--;
-            if (attempts > 0 && rotateApiKey()) {
-                console.warn("[documentExtractionService] Retrying document extraction with fallback API key...");
-                continue;
-            }
-            break;
-        }
-    }
-
-    console.error("Extraction error:", lastError);
-    throw new Error("Failed to process document. Please ensure it's a clear image or PDF.");
+    // Execute the orchestrated classification, table parsing and field mapping pipeline (Stage 4 & 5)
+    return await runLlamaGeminiPipeline(llamaDoc);
 };
