@@ -73,6 +73,26 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       }
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            // Group heavy ICD-10 static database files into their own chunk
+            if (
+              id.includes('icd10Codes.json') ||
+              id.includes('icd10Categories.json') ||
+              id.includes('icd10Database.ts')
+            ) {
+              return 'icd-database';
+            }
+            // Group external dependencies into a vendor chunk
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
+          }
+        }
+      }
     }
   };
 });
