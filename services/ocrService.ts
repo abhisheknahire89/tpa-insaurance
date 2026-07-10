@@ -2,7 +2,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
 // @ts-ignore
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import Tesseract from 'tesseract.js';
+import { getGoogleGenerativeAIClient } from './apiKeys';
+import { MODEL_DOCUMENT } from '../config/modelConfig';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -57,14 +58,73 @@ export async function extractTextFromPdf(arrayBuffer: ArrayBuffer): Promise<stri
 }
 
 /**
- * Extracts text from an image file/blob or base64 URL using Tesseract OCR
+ * Converts a File, Blob, or base64 URL to raw base64 data and mimeType
+ */
+async function toBase64(source: File | Blob | string): Promise<{ mimeType: string; data: string }> {
+    if (typeof source === 'string') {
+        if (source.startsWith('data:')) {
+            const parts = source.split(',');
+            const mimeType = parts[0].split(':')[1].split(';')[0];
+            const data = parts[1];
+            return { mimeType, data };
+        } else {
+            return { mimeType: 'image/png', data: source };
+        }
+    }
+    
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(source);
+        reader.onload = () => {
+            const base64Url = reader.result as string;
+            const parts = base64Url.split(',');
+            const mimeType = parts[0].split(':')[1].split(';')[0];
+            const data = parts[1];
+            resolve({ mimeType, data });
+        };
+        reader.onerror = error => reject(error);
+    });
+}
+
+/**
+ * Converts an ArrayBuffer to a base64 string in chunks to prevent call-stack limit errors
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 8192;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk) as any);
+    }
+    return window.btoa(binary);
+}
+
+/**
+ * Extracts text from an image file/blob or base64 URL using Gemini Multimodal OCR
  */
 export async function extractTextFromImage(source: File | Blob | string): Promise<string> {
     try {
-        const result = await Tesseract.recognize(source, 'eng');
-        return result.data.text;
+        console.log('[ocrService] Running Gemini-based Multimodal OCR on image...');
+        const client = getGoogleGenerativeAIClient();
+        const model = client.getGenerativeModel({ model: MODEL_DOCUMENT });
+        
+        const media = await toBase64(source);
+        
+        const contents = [
+            {
+                inlineData: {
+                    mimeType: media.mimeType,
+                    data: media.data
+                }
+            },
+            "Extract all text from this image. Keep layout, headings, tables, and list items intact. Do not summarize or add commentary."
+        ];
+        
+        const result = await model.generateContent(contents);
+        const text = result.response.text();
+        return text || '';
     } catch (error) {
-        console.error('[ocrService] Error running OCR on image:', error);
+        console.error('[ocrService] Gemini Multimodal OCR on image failed:', error);
         throw error;
     }
 }
@@ -117,33 +177,12 @@ export async function extractTextFromWizardDocument(doc: WizardDocument): Promis
 }
 
 /**
- * OCR fallback for scanned PDFs: renders each page to a canvas and runs Tesseract OCR
+ * OCR fallback for scanned PDFs: parses page-by-page using Gemini Multimodal OCR
  */
 export async function extractTextFromScannedPdf(arrayBuffer: ArrayBuffer): Promise<string> {
     try {
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
-        let fullText = '';
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale: 1.5 });
-            
-            // Create a canvas to render the page
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            
-            if (context) {
-                await page.render({ canvasContext: context, viewport }).promise;
-                const dataUrl = canvas.toDataURL('image/png');
-                console.log(`[ocrService] Running OCR on PDF Page ${i}...`);
-                const pageText = await extractTextFromImage(dataUrl);
-                fullText += `--- START OF PAGE ${i} (Scanned OCR) ---\n${pageText}\n--- END OF PAGE ${i} ---\n\n`;
-            }
-        }
-        return fullText.trim();
+        const pages = await extractPagesFromScannedPdf(arrayBuffer);
+        return pages.map((page, idx) => `--- START OF PAGE ${idx + 1} (Scanned OCR) ---\n${page}\n--- END OF PAGE ${idx + 1} ---\n\n`).join('').trim();
     } catch (error) {
         console.error('[ocrService] Scanned PDF OCR failed:', error);
         return '';
@@ -175,33 +214,41 @@ export async function extractPagesFromPdf(arrayBuffer: ArrayBuffer): Promise<str
 }
 
 /**
- * Extracts pages as string array from a scanned PDF ArrayBuffer using OCR
+ * Extracts pages as string array from a scanned PDF ArrayBuffer using Gemini Multimodal OCR
  */
 export async function extractPagesFromScannedPdf(arrayBuffer: ArrayBuffer): Promise<string[]> {
     try {
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
+        console.log('[ocrService] Running Gemini-based Multimodal OCR on PDF...');
+        const client = getGoogleGenerativeAIClient();
+        const model = client.getGenerativeModel({ model: MODEL_DOCUMENT });
+        
+        const base64 = arrayBufferToBase64(arrayBuffer);
+        
+        const contents = [
+            {
+                inlineData: {
+                    mimeType: 'application/pdf',
+                    data: base64
+                }
+            },
+            "Please extract all text from this PDF document. Present it page-by-page, wrapping each page's content strictly between '--- START OF PAGE X ---' and '--- END OF PAGE X ---', where X is the 1-based page number. Do not summarize or add commentary."
+        ];
+        
+        const result = await model.generateContent(contents);
+        const text = result.response.text();
+        
         const pages: string[] = [];
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale: 1.5 });
-            
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            
-            if (context) {
-                await page.render({ canvasContext: context, viewport }).promise;
-                const dataUrl = canvas.toDataURL('image/png');
-                const pageText = await extractTextFromImage(dataUrl);
-                pages.push(pageText);
+        const pageMatches = [...text.matchAll(/--- START OF PAGE (\d+) ---([\s\S]*?)--- END OF PAGE \1 ---/gi)];
+        if (pageMatches.length > 0) {
+            for (const match of pageMatches) {
+                pages.push(match[2].trim());
             }
+        } else {
+            pages.push(text);
         }
         return pages;
     } catch (error) {
-        console.error('[ocrService] Scanned pages extract failed:', error);
+        console.error('[ocrService] Gemini Multimodal OCR on PDF failed:', error);
         return [];
     }
 }
